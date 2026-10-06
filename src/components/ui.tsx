@@ -14,7 +14,8 @@ export function Modal({ title, children, onClose, className = '', description }:
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const timer = window.setTimeout(() => {
-      const target = ref.current?.querySelector<HTMLElement>('[data-autofocus], input, textarea, select, button');
+      const target = ref.current?.querySelector<HTMLElement>('[data-autofocus]')
+        || ref.current?.querySelector<HTMLElement>('input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled)');
       target?.focus({ preventScroll: true });
     }, 30);
     const key = (event: KeyboardEvent) => {

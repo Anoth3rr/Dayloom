@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from 'lucide-react';
-import { dayEvents, friendlyDate, monthDays, monthTitle, parseDate, shiftMonth, timeRange, WEEKDAYS } from '../domain';
+import { addDays, dayEvents, friendlyDate, monthDays, monthTitle, parseDate, shiftMonth, timeRange, WEEKDAYS } from '../domain';
+import { calendarData } from '../gaming';
 import type { AppData, Task } from '../types';
 import { accentStyle, IconButton } from './ui';
 import { useState } from 'react';
@@ -7,9 +8,11 @@ import { useState } from 'react';
 export function MiniCalendar({ data, selected, onSelect, today, month, setMonth }: { data: AppData; selected: string; onSelect: (date: string) => void; today: string; month: string; setMonth: (date: string) => void }) {
   return <div className="mini-calendar"><div className="mini-month-title"><strong>{monthTitle(month)}</strong><div><IconButton label="上个月" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft size={15} /></IconButton><IconButton label="下个月" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight size={15} /></IconButton></div></div><div className="mini-weekdays">{['一', '二', '三', '四', '五', '六', '日'].map(day => <span key={day}>{day}</span>)}</div><div className="mini-days">{monthDays(month).map(day => <button key={day} aria-label={`选择日期 ${day}`} aria-pressed={day === selected} className={`${day.slice(0, 7) !== month.slice(0, 7) ? 'muted' : ''} ${day === today ? 'is-today' : ''} ${day === selected ? 'selected' : ''}`} onClick={() => { onSelect(day); if (day.slice(0, 7) !== month.slice(0, 7)) setMonth(day); }}><span>{parseDate(day).getDate()}</span>{data.tasks.some(task => task.date === day && !task.completed) && <i />}</button>)}</div></div>;
 }
-export function Agenda({ data, today, onEdit, onNew, onCalendar }: { data: AppData; today: string; onEdit: (task: Task) => void; onNew: (date: string) => void; onCalendar: () => void }) {
+export function Agenda({ data: storedData, today, onEdit, onNew, onCalendar }: { data: AppData; today: string; onEdit: (task: Task) => void; onNew: (date: string) => void; onCalendar: () => void }) {
   const [selected, setSelected] = useState(today);
   const [month, setMonth] = useState(today);
+  const days = monthDays(month);
+  const data = calendarData(storedData, addDays(days[0] < selected ? days[0] : selected, -1), days[41] > selected ? days[41] : selected);
   const events = dayEvents(data.tasks.filter(task => !task.completed), selected);
   const allDay = data.tasks.filter(task => !task.completed && task.date === selected && !task.time);
   return <aside className="agenda-panel"><header className="agenda-heading"><span><CalendarDays size={17} />日程一览</span><IconButton label="打开完整日历" onClick={onCalendar}><ChevronRight size={17} /></IconButton></header><MiniCalendar key={today} data={data} today={today} selected={selected} onSelect={setSelected} month={month} setMonth={setMonth} /><div className="agenda-divider" /><div className="agenda-date"><div><strong>{friendlyDate(selected, today)}</strong><span>星期{WEEKDAYS[parseDate(selected).getDay()]}</span></div><button onClick={() => { setSelected(today); setMonth(today); }} className="text-button">回到今天</button></div><div className="agenda-summary"><Clock3 size={12} />{events.length} 段日程 · {allDay.length} 个全天任务</div><div className="agenda-scroll">

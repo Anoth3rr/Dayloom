@@ -1,3 +1,5 @@
+import { assertGaming } from './gaming-schema.mjs';
+
 export function isValidDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split('-').map(Number);
@@ -23,6 +25,7 @@ export function assertData(data) {
   if (!Array.isArray(data.tasks) || data.tasks.length > 10000) fail('任务数量无效');
   const ids = new Set();
   for (const task of data.tasks) {
+    if (task?.gameOccurrence !== undefined) fail('周期活动不能作为普通任务写入');
     if (!object(task) || !str(task.id, 100) || !str(task.title, 300) || !lists.has(task.listId)) fail('任务名称或所属清单无效');
     if (ids.has(task.id)) fail('任务 ID 重复');
     ids.add(task.id);
@@ -42,5 +45,6 @@ export function assertData(data) {
     }
   }
   if (!object(data.settings) || !['light', 'dark', 'system'].includes(data.settings.theme) || !Number.isFinite(data.settings.glass) || data.settings.glass < 55 || data.settings.glass > 100) fail('外观设置无效');
+  if (data.gaming !== undefined) assertGaming(data.gaming);
   return data;
 }

@@ -3,19 +3,22 @@ import { CalendarDays, ChevronLeft, ChevronRight, Grip, Plus } from 'lucide-reac
 import { addDays, clockText, dayEvents, monthDays, monthTitle, parseDate, shiftMonth, startOfWeek, WEEKDAYS } from '../domain';
 import type { AppData, Task } from '../types';
 import { accentStyle, IconButton } from './ui';
+import { calendarData } from '../gaming';
 
-export function Calendar({ data, today, onNew, onEdit, onMove }: { data: AppData; today: string; onNew: (date: string, time?: string) => void; onEdit: (task: Task) => void; onMove: (id: string, date: string, time: string | null) => void }) {
+export function Calendar({ data: storedData, today, onNew, onEdit, onMove }: { data: AppData; today: string; onNew: (date: string, time?: string) => void; onEdit: (task: Task) => void; onMove: (task: Task, date: string, time: string | null) => void }) {
   const [anchor, setAnchor] = useState(today);
   const [mode, setMode] = useState<'week' | 'month'>('week');
   const scrollRef = useRef<HTMLDivElement>(null);
   const weekStart = startOfWeek(anchor);
   const days = mode === 'week' ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)) : monthDays(anchor);
+  const data = calendarData(storedData, addDays(days[0], -1), days[days.length - 1]);
   useEffect(() => { if (scrollRef.current && mode === 'week') scrollRef.current.scrollTop = 8 * 64; }, [mode]);
   const navigate = (dir: number) => setAnchor(mode === 'week' ? addDays(anchor, dir * 7) : shiftMonth(anchor, dir));
   const drop = (event: React.DragEvent, day: string, time: string | null) => {
     event.preventDefault(); event.currentTarget.classList.remove('drag-over');
     const id = event.dataTransfer.getData('text/shixu-task');
-    if (id && data.tasks.some(task => task.id === id)) onMove(id, day, time);
+    const task = data.tasks.find(task => task.id === id);
+    if (task) onMove(task, day, time);
   };
   const drag = (event: React.DragEvent, task: Task) => { event.dataTransfer.setData('text/shixu-task', task.id); event.dataTransfer.effectAllowed = 'move'; };
   const allow = (event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; event.currentTarget.classList.add('drag-over'); };
