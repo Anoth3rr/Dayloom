@@ -1,0 +1,59 @@
+/* Desktop reading sizes: use real font sizes so controls remain sharp at any DPI. */
+html,body,#root,.app-backdrop,.app-window{overflow:clip}
+:root{--muted:#7c899e;--secondary:#61728a}
+:root[data-theme='dark']{--muted:#95a4bd;--secondary:#b0bed5}
+.titlebar-label{font-size:11px}.breadcrumbs{font-size:11px}
+.brand strong{font-size:24px}.brand span{font-size:10px}
+.search-trigger{font-size:13px;height:38px}.search-trigger kbd{font-size:10px}
+.nav-item{font-size:14px;height:43px}.nav-count{font-size:12px}
+.sidebar-section-heading{font-size:12px}.completed-nav{font-size:14px}
+.local-note strong{font-size:12px}.local-note span{font-size:11px;line-height:1.6}
+.profile-button{font-size:13px}.profile-button small{font-size:10px}.local-caption{font-size:10px}
+.page-eyebrow{font-size:10px;letter-spacing:1.5px}.page-header h1{font-size:31px}
+.page-header p{font-size:13px;line-height:1.7}.page-header{padding-top:27px;padding-bottom:23px}
+.today-overview{min-height:101px;margin-bottom:22px}.overview-text>span{font-size:15px}.overview-text p{font-size:12px}
+.progress-ring{width:66px;height:66px}.progress-ring>div{width:58px;height:58px}.progress-ring strong{font-size:20px}.progress-ring small{font-size:11px}.progress-ring span{font-size:9px}
+.quick-add-top{height:53px}.quick-add-top>input{font-size:14px}
+.quick-options input,.quick-options select{font-size:12px;max-width:132px}.quick-options input{width:122px}.quick-options>span{font-size:11px}
+.task-toolbar{font-size:11px;height:50px}.task-toolbar select{font-size:12px}.task-toolbar>span{font-size:11px}
+.task-group h3,.group-toggle{font-size:12px;padding-bottom:12px}.task-group h3>span,.group-toggle>span{font-size:11px}
+.task-row{min-height:73px;gap:13px;padding-top:12px;padding-bottom:12px}
+.task-title{font-size:15px;line-height:1.65}.task-content{gap:6px}.task-meta{font-size:11px;gap:13px}
+.task-date{font-size:12px}.priority-flag{width:13px}.task-check{width:18px;height:18px}
+.completed-group .task-row{min-height:66px}.completed-group{margin-top:24px}
+.list-end-note{font-size:11px;line-height:1.8}.task-footer{font-size:11px;height:42px}.task-footer kbd{font-size:10px}
+.search-box input{font-size:14px}.search-box>span{font-size:12px}
+.empty-state h3{font-size:17px}.empty-state p{font-size:13px}
+.agenda-panel{width:324px;flex-basis:324px;padding-left:24px;padding-right:24px}
+.agenda-heading>span{font-size:14px}.mini-month-title strong{font-size:14px}.mini-weekdays{font-size:11px}
+.mini-days>button{font-size:12px;width:31px;height:30px}.mini-days{gap:3px 0}
+.agenda-date strong{font-size:15px}.agenda-date span{font-size:12px}.agenda-date .text-button{font-size:11px}
+.agenda-summary{font-size:11px;line-height:1.7}.all-day-summary>span{font-size:11px}.all-day-summary>button{font-size:12px}
+.agenda-time{font-size:11px}.agenda-event{padding:13px 12px;gap:8px}.agenda-event strong{font-size:13px}.agenda-event>span{font-size:11px}.agenda-event small{font-size:10px}
+.add-schedule{font-size:12px;height:37px}.agenda-empty strong{font-size:13px}.agenda-empty p{font-size:12px}
+.button{font-size:13px;height:39px}.text-button{font-size:12px}kbd{font-size:11px}
+.modal-heading h2{font-size:20px}.modal-heading p{font-size:12px}.confirm-description{font-size:14px}
+.drawer{width:450px}.drawer .modal-heading h2{font-size:18px}.editor-title>textarea{font-size:22px}
+.property-row{min-height:46px}.property-row>span{font-size:13px}.property-row>input:not(.switch),.property-row>select{font-size:13px;height:34px;min-width:154px}
+.duration-input{font-size:12px}.duration-input>input{font-size:13px;height:34px}.property-hint{font-size:11px}
+.subtasks-section>h3{font-size:13px}.subtasks-section>h3>span{font-size:12px}.subtask-row>input{font-size:13px}.subtask-row{min-height:38px}
+.add-subtask>input{font-size:12px}.notes-label{font-size:13px}.notes-label>textarea{font-size:13px}
+.editor-footer>span{font-size:11px}.editor-footer>.button{font-size:13px;height:37px}
+.form-label{font-size:13px}.form-label>input{font-size:14px}.list-modal .text-danger{font-size:12px}.field-error{font-size:12px}
+.settings-section h3{font-size:14px}.theme-choices>button>span{font-size:12px}
+.glass-setting strong{font-size:13px}.glass-setting span{font-size:11px}.glass-setting>b{font-size:14px}.range-labels{font-size:10px}
+.storage-info strong{font-size:13px}.storage-info p{font-size:12px}.storage-info>div>span{font-size:11px}
+.backup-buttons>.button{font-size:12px;height:36px}.example-setting{font-size:11px}.example-setting>.text-button{font-size:12px}
+.shortcuts>div{font-size:12px}.shortcuts>div>span:last-child{font-size:11px}.settings-about{font-size:11px}
+.toast{font-size:13px}.toast>button:not(.icon-button){font-size:13px}
+.calendar-toolbar h2{font-size:18px}.today-button{font-size:12px}.segmented>button{font-size:13px}
+.week-header>button{font-size:12px}.week-header strong{font-size:22px}.timezone-label{font-size:10px}
+.all-day-row>span{font-size:11px}.hour-gutter>span{font-size:11px}
+.week-event strong{font-size:12px}.week-event>span{font-size:10px}.week-event.compact-event strong{font-size:11px}
+.calendar-footer{font-size:11px}.month-weekdays>span{font-size:12px}.month-day-label{font-size:13px}
+.calendar-pill{font-size:11px}.calendar-pill>small{font-size:10px}
+@media(min-width:1500px){.task-title{font-size:15px}.agenda-panel{width:340px;flex-basis:340px}}
+@media(max-width:1200px){.sidebar{width:205px;flex-basis:205px}.titlebar-label{width:205px}.agenda-panel{width:294px;flex-basis:294px;padding-left:19px;padding-right:19px}.overview-text>span{font-size:14px}.page-eyebrow{font-size:9px}.week-event strong{font-size:11px}.week-event>span{font-size:10px}.task-title{font-size:14px}}
+@media(max-width:1020px){.sidebar{width:200px;flex-basis:200px}.titlebar-label{width:200px}.agenda-panel{display:none}}
+@media(max-width:850px){.calendar-main>.page-header>.button{font-size:12px}.calendar-toolbar h2{font-size:16px}.week-header strong{font-size:19px}.week-event strong{font-size:10px}.week-event>span{font-size:9px}.hour-gutter>span{font-size:10px}.timezone-label{font-size:8px}.calendar-footer{font-size:10px}.month-weekdays>span{font-size:11px}.calendar-pill{font-size:10px}}
+@media(max-width:650px){.sidebar{width:65px;flex-basis:65px}.titlebar-label{display:none}.page-header h1{font-size:28px}.task-title{font-size:14px;white-space:normal;line-height:1.7}.task-meta{font-size:10px}.task-row{gap:10px}.task-date{font-size:11px}.overview-text>span{font-size:13px}.overview-text p{font-size:11px}.progress-ring{width:55px;height:55px}.progress-ring>div{width:48px;height:48px}.progress-ring strong{font-size:17px}.progress-ring span{font-size:8px}.task-toolbar>span{font-size:10px}.quick-options input,.quick-options select{font-size:11px}.quick-options select{max-width:85px}.quick-options input{max-width:112px}.task-footer{font-size:10px}.drawer{width:100%}.theme-choices>button>span{font-size:11px}.backup-buttons .button{font-size:11px}.modal-heading h2{font-size:18px}.task-meta{gap:7px}}

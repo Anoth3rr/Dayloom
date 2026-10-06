@@ -1,0 +1,60 @@
+{
+  "name": "shixu-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "拾序 — 轻盈有序的任务与日程桌面应用",
+  "author": "Shixu",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "desktop:dev": "node scripts/dev.mjs",
+    "build": "tsc -b && vite build",
+    "start": "electron .",
+    "test": "tsx --test tests/domain.test.ts",
+    "test:desktop": "node tests/desktop-smoke.mjs",
+    "package": "npm run build && electron-builder --win portable --x64"
+  },
+  "build": {
+    "appId": "app.shixu.desktop",
+    "productName": "拾序",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "shared/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.ico",
+      "signExecutable": false
+    },
+    "portable": {
+      "artifactName": "Shixu-1.0.0-Windows.exe"
+    }
+  },
+  "dependencies": {
+    "lucide-react": "1.52.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.3"
+  }
+}
