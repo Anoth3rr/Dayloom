@@ -10,16 +10,19 @@ if (-not (Test-Path -LiteralPath $appExecutable -PathType Leaf)) {
 $desktopDirectory = [Environment]::GetFolderPath('Desktop')
 if (-not $desktopDirectory) { throw 'Desktop directory not found.' }
 $shortcutPath = Join-Path $desktopDirectory 'Dayloom.lnk'
+$previousElectronMode = $env:ELECTRON_RUN_AS_NODE
+try {
+    $env:ELECTRON_RUN_AS_NODE = $null
+    $helper = Start-Process -FilePath $appExecutable -ArgumentList '--create-desktop-shortcut' -WorkingDirectory $appDirectory -WindowStyle Hidden -Wait -PassThru
+    if ($helper.ExitCode -ne 0) { throw 'The desktop shortcut could not be created.' }
+} finally {
+    $env:ELECTRON_RUN_AS_NODE = $previousElectronMode
+}
 $shortcutShell = New-Object -ComObject WScript.Shell
-$shortcut = $shortcutShell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $appExecutable
-$shortcut.WorkingDirectory = $appDirectory
-$shortcut.IconLocation = "$appExecutable,0"
-$shortcut.Description = 'Dayloom - Tasks and calendar'
-$shortcut.Save()
-
 $saved = $shortcutShell.CreateShortcut($shortcutPath)
-if ($saved.TargetPath -ne $appExecutable -or -not (Test-Path -LiteralPath $saved.TargetPath -PathType Leaf)) {
+$shellApplication = New-Object -ComObject Shell.Application
+$savedAppId = $shellApplication.NameSpace($desktopDirectory).ParseName('Dayloom.lnk').ExtendedProperty('System.AppUserModel.ID')
+if ($saved.TargetPath -ne $appExecutable -or $savedAppId -ne $package.build.appId -or -not (Test-Path -LiteralPath $saved.TargetPath -PathType Leaf)) {
     throw 'The saved shortcut target could not be verified.'
 }
-[PSCustomObject]@{ Shortcut = $shortcutPath; Target = $saved.TargetPath; WorkingDirectory = $saved.WorkingDirectory }
+[PSCustomObject]@{ Shortcut = $shortcutPath; Target = $saved.TargetPath; WorkingDirectory = $saved.WorkingDirectory; AppId = $savedAppId }

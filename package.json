@@ -1,6 +1,6 @@
 {
   "name": "shixu-desktop",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Dayloom · 拾序 — 任务与日程桌面应用",
   "author": "Shixu",
@@ -32,6 +32,9 @@
       "package.json"
     ],
     "asar": true,
+    "extraResources": [
+      { "from": "build/icon.ico", "to": "dayloom.ico" }
+    ],
     "electronDist": "node_modules/electron/dist",
     "win": {
       "target": "portable",
@@ -39,7 +42,7 @@
       "signExecutable": false
     },
     "portable": {
-      "artifactName": "Dayloom-1.2.0-Windows.exe"
+      "artifactName": "Dayloom-1.2.1-Windows.exe"
     }
   },
   "dependencies": {

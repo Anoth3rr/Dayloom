@@ -4,9 +4,9 @@
 
 ## 直接使用
 
-双击 `release/Dayloom-1.2.0-Windows.exe`（或 `启动拾序.cmd`），无需安装 Node.js，无需登录。
+双击 `release/Dayloom-1.2.1-Windows.exe`（或 `启动拾序.cmd`），无需安装 Node.js，无需登录。
 
-桌面快捷方式名为 **Dayloom**，直接打开 `release/win-unpacked/拾序.exe`。移动项目目录后，可运行 `powershell -File scripts/create-desktop-shortcut.ps1` 更新快捷方式。
+桌面快捷方式名为 **Dayloom**，直接打开 `release/win-unpacked/拾序.exe`。移动项目目录后，可运行 `powershell -File scripts/create-desktop-shortcut.ps1` 更新桌面与开始菜单快捷方式。正式版启动时也会更新自己的开始菜单入口，开发版使用独立的 Windows 应用标识，避免关联到失效的开发路径。任务栏使用独立的 ICO 文件；便携版使用外层 EXE 的图标和启动路径，避免记录临时解压目录。
 
 也可以打开 `release/win-unpacked/拾序.exe`。首次运行包含可编辑的示例任务；在「设置 → 清除示例」中移除尚未修改的示例。
 

@@ -6,11 +6,16 @@ import { fileURLToPath } from 'node:url';
 import { assertData } from '../shared/schema.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const appId = app.isPackaged ? 'app.shixu.desktop' : 'app.shixu.desktop.dev';
+const launchExecutable = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+const taskbarIcon = app.isPackaged
+  ? process.env.PORTABLE_EXECUTABLE_FILE || path.join(process.resourcesPath, 'dayloom.ico')
+  : path.join(root, 'build/icon.ico');
 const dev = process.argv.includes('--dev');
 const testArg = process.argv.find(arg => arg.startsWith('--data-dir='));
 if (testArg) app.setPath('userData', path.resolve(testArg.slice('--data-dir='.length)));
 app.setName('拾序');
-app.setAppUserModelId('app.shixu.desktop');
+app.setAppUserModelId(appId);
 let win;
 let currentData = null;
 let storageBlocked = false;
@@ -20,6 +25,22 @@ const acrylicSupported = process.platform === 'win32' && Number(os.release().spl
 const notified = new Set();
 const dataPath = () => path.join(app.getPath('userData'), 'shixu-data.json');
 
+function writeWindowsShortcut(shortcutPath) {
+  const details = {
+    target: launchExecutable, cwd: path.dirname(launchExecutable), args: '',
+    icon: taskbarIcon, iconIndex: 0, appUserModelId: appId,
+    description: 'Dayloom - Tasks and calendar',
+  };
+  fs.mkdirSync(path.dirname(shortcutPath), { recursive: true });
+  if (!shell.writeShortcutLink(shortcutPath, 'create', details)) throw new Error('Could not write the Dayloom shortcut.');
+  const saved = shell.readShortcutLink(shortcutPath);
+  if (saved.target !== details.target || saved.appUserModelId !== appId || saved.icon !== details.icon) {
+    throw new Error('Could not verify the Dayloom shortcut.');
+  }
+}
+function updateStartMenuShortcut() {
+  writeWindowsShortcut(path.join(app.getPath('appData'), 'Microsoft/Windows/Start Menu/Programs', `${app.getName()}.lnk`));
+}
 function readJson(file) {
   if (fs.statSync(file).size > 20 * 1024 * 1024) throw new Error('数据文件过大');
   return assertData(JSON.parse(fs.readFileSync(file, 'utf8')));
@@ -104,6 +125,15 @@ function createWindow() {
     icon: path.join(root, 'build/icon.png'),
     webPreferences: { preload: path.join(root, 'electron/preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false },
   });
+  if (process.platform === 'win32') {
+    win.setAppDetails({
+      appId,
+      appIconPath: taskbarIcon,
+      appIconIndex: 0,
+      relaunchCommand: app.isPackaged ? `"${launchExecutable}"` : `"${process.execPath}" "${root}"${dev ? ' --dev' : ''}`,
+      relaunchDisplayName: 'Dayloom · 拾序',
+    });
+  }
   win.setMenuBarVisibility(false);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
@@ -127,11 +157,21 @@ function checkReminders() {
     notification.show();
   }
 }
-const locked = app.requestSingleInstanceLock();
-if (!locked) app.quit();
+if (process.argv.includes('--create-desktop-shortcut')) {
+  app.whenReady().then(() => {
+    if (process.platform !== 'win32' || !app.isPackaged) throw new Error('A Windows desktop build is required.');
+    writeWindowsShortcut(path.join(app.getPath('desktop'), 'Dayloom.lnk'));
+    updateStartMenuShortcut();
+    app.quit();
+  }).catch(error => { console.error(error); app.exit(1); });
+} else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
   app.whenReady().then(() => {
+    if (process.platform === 'win32' && app.isPackaged && !testArg) {
+      try { updateStartMenuShortcut(); }
+      catch (error) { console.error('Could not update the Dayloom Start Menu shortcut:', error); }
+    }
     registerIPC(); createWindow(); reminderTimer = setInterval(checkReminders, 15000);
     app.on('activate', () => { if (!win) createWindow(); });
   });
