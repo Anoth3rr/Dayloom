@@ -1,4 +1,4 @@
-import { Archive, CalendarDays, CalendarRange, Check, CheckCheck, ChevronRight, CloudOff, Gamepad2, Hash, Inbox, ListChecks, MoreHorizontal, Plus, Search, Settings2, Sun } from 'lucide-react';
+import { CalendarDays, CalendarRange, Check, CheckCheck, ChevronRight, CloudOff, Gamepad2, Hash, Inbox, ListChecks, MoreHorizontal, Plus, Search, Settings2, Sun } from 'lucide-react';
 import { currentOccurrences } from '../gaming';
 import type { AppData, TaskList, View } from '../types';
 import { tasksForView } from '../domain';
@@ -32,9 +32,8 @@ export function Sidebar({ data, view, onView, onSearch, onSettings, onList, stat
     <div className="sidebar-divider" />
     <button className={`nav-item completed-nav ${view === 'completed' ? 'active' : ''}`} onClick={() => onView('completed')}><CheckCheck size={18} strokeWidth={1.8} /><span>已完成</span></button>
     <div className="sidebar-bottom">
-      <div className="local-note"><div className="local-note-icon"><Archive size={17} /></div><div><strong>每一小步，都算数</strong><span>按自己的节奏，慢慢来。</span></div></div>
       <div className="sidebar-footer"><button className="profile-button" onClick={onSettings} title="偏好设置"><span className="avatar">序</span><span>我的空间<small><i className={status === '保存失败' ? 'error-dot' : ''} />{status}</small></span></button><IconButton label="设置" onClick={onSettings}><Settings2 size={18} /></IconButton></div>
-      <div className="local-caption"><CloudOff size={11} />本地生活，安心记录</div>
+      <div className="local-caption"><CloudOff size={11} />本地存储</div>
     </div>
   </aside>;
 }

@@ -98,7 +98,7 @@ function registerIPC() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 940, minWidth: 1080, minHeight: 720, frame: false,
-    title: '拾序 · 把日子过得有序', show: false,
+    title: 'Dayloom · 拾序', show: false,
     backgroundColor: acrylicSupported ? '#00FFFFFF' : '#f2f5fa',
     ...(acrylicSupported ? { backgroundMaterial: 'acrylic' } : {}),
     icon: path.join(root, 'build/icon.png'),
@@ -122,7 +122,7 @@ function checkReminders() {
     const key = `${task.id}:${task.date}:${task.time}`;
     if (due < startedAt - 1000 || due > now || now - due > 300000 || notified.has(key)) continue;
     notified.add(key);
-    const notification = new Notification({ title: task.title, body: `拾序 · ${task.time}，给这件事留一点时间。`, icon: path.join(root, 'build/icon.png') });
+    const notification = new Notification({ title: task.title, body: `任务提醒 · ${task.time}`, icon: path.join(root, 'build/icon.png') });
     notification.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
     notification.show();
   }
