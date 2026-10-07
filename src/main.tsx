@@ -5,5 +5,6 @@ import './styles.css';
 import './styles-readable.css';
 import './styles-gaming.css';
 import './styles-planning.css';
+import './styles-account.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

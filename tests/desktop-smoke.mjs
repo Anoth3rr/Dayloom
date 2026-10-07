@@ -42,6 +42,11 @@ try {
   await page.screenshot({ path: path.join(outputs, '02-task-editor.png') });
   await dialog.getByRole('button', { name: '保存更改', exact: true }).click();
   await expect(page.getByRole('button', { name: '编辑任务 验收：完成设计稿', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '编辑任务 验收：完成设计稿', exact: true }).click();
+  await expect(dialog.getByLabel('所属清单')).toHaveValue('work');
+  await expect(dialog.getByLabel('优先级', { exact: true })).toHaveValue('3');
+  await expect(dialog.getByLabel('预计时长')).toHaveValue('90');
+  await page.getByRole('button', { name: '关闭弹窗', exact: true }).click();
   record('编辑日期、清单、优先级、时长、备注、子任务');
   await page.getByRole('checkbox', { name: '完成 验收：完成设计稿', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: '恢复 验收：完成设计稿', exact: true })).toBeChecked();

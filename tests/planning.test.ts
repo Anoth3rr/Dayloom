@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTask, dateKey, dayEvents, moveTaskTo, seedData, taskOnDay, taskOverdue, tasksForView, toggleDailyProgress, validateData } from '../src/domain';
+import { createTask, dateKey, dayEvents, moveTaskTo, seedData, taskOnDay, taskOverdue, tasksForView, validateData } from '../src/domain';
 import { calendarData, changeProgress, currentOccurrences, gameDay, newActivity, newGame, occurrencesInRange, planOccurrence, saveActivity, saveGame } from '../src/gaming';
 import type { AppData, GameActivity, Task } from '../src/types';
 
@@ -61,32 +61,22 @@ test('跨日窗口可安排夜间事务，日期截止包含整天', () => {
   assert.doesNotThrow(() => moveTaskTo(wholeDay, today, '23:29'));
   assert.throws(() => moveTaskTo(wholeDay, today, '23:45'), /时间窗口/);
 });
-test('长期事务在远期截止前每天显示，今日推进不会完成整个事务或复制任务', () => {
-  const task = createTask({ title: '准备年度考试', longTerm: { startDate: today, doneDates: [] }, timeWindow: { earliest: null, latest: { date: '2027-06-01', time: null } } });
-  assert.equal(tasksForView(dataWith(task), 'today', '', '2026-10-06').length, 0);
-  const done = toggleDailyProgress(task, today);
-  assert.equal(done.completed, false);
-  assert.equal(done.completedAt, null);
-  assert.deepEqual(done.longTerm!.doneDates, [today]);
-  assert.equal(tasksForView(dataWith(done), 'today', '', '2026-10-08').length, 1);
-  assert.equal(done.longTerm!.doneDates.includes('2026-10-08'), false);
-  assert.deepEqual(toggleDailyProgress(done, today).longTerm!.doneDates, []);
-  const next = toggleDailyProgress(done, '2026-10-08');
-  assert.equal(next.id, task.id);
-  assert.deepEqual(next.longTerm!.doneDates, [today, '2026-10-08']);
-  assert.equal(tasksForView(dataWith(next), 'important').length, 1);
-  assert.doesNotThrow(() => validateData(dataWith(next)));
+test('非常重要在远期日期之前每天显示，完成后次日停止', () => {
+  const task = createTask({ title: '准备年度考试', priority: 4, date: '2027-06-01' });
+  assert.equal(tasksForView(dataWith(task), 'today', '', today).length, 1);
+  assert.equal(tasksForView(dataWith(task), 'today', '', '2026-10-08').length, 1);
+  const done = { ...task, completed: true, completedAt: now.toISOString() };
+  assert.equal(tasksForView(dataWith(done), 'today', '', today).length, 1);
+  assert.equal(tasksForView(dataWith(done), 'today', '', '2026-10-08').length, 0);
+  assert.equal(tasksForView(dataWith({ ...task, priority: 3 }), 'today', '', today).length, 0);
 });
-test('最终完成后停止每日出现，未来开始的长期事务不能提前推进', () => {
-  const task = createTask({ title: '长期目标', longTerm: { startDate: today, doneDates: [] } });
-  assert.equal(toggleDailyProgress(task, '2026-10-06'), task);
-  const completed = { ...task, completed: true, completedAt: now.toISOString() };
-  assert.equal(tasksForView(dataWith(completed), 'today', '', today).length, 1);
-  assert.equal(tasksForView(dataWith(completed), 'today', '', '2026-10-08').length, 0);
-  assert.equal(toggleDailyProgress(completed, '2026-10-08'), completed);
-  assert.equal(tasksForView(dataWith(completed), 'completed').length, 1);
+test('旧长期事务转换为非常重要，推进历史保留；窗口完成后停止投影', () => {
+  const task = createTask({ title: '旧长期目标', longTerm: { startDate: today, doneDates: [today] } });
+  const migrated = validateData(dataWith(task));
+  assert.equal(migrated.tasks[0].priority, 4);
+  assert.equal(migrated.tasks[0].longTerm, undefined);
+  assert.deepEqual(migrated.tasks[0].legacyLongTerm, task.longTerm);
   assert.throws(() => validateData(dataWith({ ...task, longTerm: { startDate: today, doneDates: [today, today] } })), /每日推进/);
-  assert.doesNotThrow(() => validateData(dataWith({ ...task, longTerm: { startDate: '2026-10-10', doneDates: [today] } })));
   const windowDone = { ...windowTask(), completed: true, completedAt: now.toISOString() };
   assert.equal(taskOnDay(windowDone, today), true);
   assert.equal(taskOnDay(windowDone, '2026-10-08'), false);

@@ -1,0 +1,9 @@
+node_modules
+dist
+release
+test-results
+server-data
+.git
+*.tsbuildinfo
+.env
+.env.*

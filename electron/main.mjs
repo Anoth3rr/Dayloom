@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeTheme, Notification, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme, Notification, shell, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { assertData } from '../shared/schema.mjs';
+import { createAccountStorage } from './accounts.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appId = app.isPackaged ? 'app.shixu.desktop' : 'app.shixu.desktop.dev';
@@ -46,6 +47,7 @@ function readJson(file) {
   return assertData(JSON.parse(fs.readFileSync(file, 'utf8')));
 }
 function load() {
+  currentData = null;
   const file = dataPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (!fs.existsSync(file)) return { data: null, path: file };
@@ -83,7 +85,16 @@ function checkSender(event) {
   if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid sender');
 }
 function registerIPC() {
+  const accounts = createAccountStorage({ app, safeStorage, onData: data => { currentData = data; } });
   const handle = (name, fn) => ipcMain.handle(name, (event, ...args) => { checkSender(event); return fn(...args); });
+  handle('account:session', accounts.session);
+  handle('account:call', accounts.call);
+  handle('account:load', accounts.loadProfile);
+  handle('account:save', accounts.saveProfile);
+  ipcMain.on('account:flush', (event, key, envelope) => {
+    try { checkSender(event); accounts.saveProfile(key, envelope); event.returnValue = true; }
+    catch (error) { event.returnValue = error.message; }
+  });
   handle('data:load', load);
   handle('data:save', save);
   ipcMain.on('data:flush', (event, data) => {

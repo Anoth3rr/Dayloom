@@ -5,3 +5,6 @@ test-results/
 *.tsbuildinfo
 .vite/
 build/*.zip
+server-data/
+.env
+.env.*

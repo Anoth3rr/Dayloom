@@ -1,4 +1,4 @@
-export type Priority = 0 | 1 | 2 | 3;
+export type Priority = 0 | 1 | 2 | 3 | 4;
 export type Theme = 'light' | 'dark' | 'system';
 export interface Subtask { id: string; title: string; completed: boolean }
 export interface TimeBoundary { date: string; time: string | null }
@@ -10,6 +10,7 @@ export interface Task {
   createdAt: string; completedAt: string | null; example?: boolean;
   timeWindow?: TimeWindow;
   longTerm?: { startDate: string; doneDates: string[] };
+  legacyLongTerm?: { startDate: string; doneDates: string[] };
   gameOccurrence?: { activityId: string; revision: number; periodStart: string };
 }
 export type ActivityKind = 'daily' | 'material' | 'weekly' | 'monthly';
@@ -38,8 +39,9 @@ export interface AppData {
   settings: { theme: Theme; glass: number };
   gaming?: GamePlannerData;
 }
-export type View = 'today' | 'inbox' | 'week' | 'calendar' | 'games' | 'important' | 'all' | 'completed' | `list:${string}` | 'search';
+export type View = 'today' | 'inbox' | 'week' | 'calendar' | 'games' | 'all' | 'completed' | `list:${string}` | 'search';
 export interface DesktopAPI {
+  account: import('./account-types').AccountBridge;
   load: () => Promise<{ data: AppData | null; warning?: string; path: string }>;
   save: (data: AppData) => Promise<void>;
   flush: (data: AppData) => true | string;

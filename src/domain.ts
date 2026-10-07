@@ -1,10 +1,11 @@
-import { assertData } from '../shared/schema.mjs';
+import { normalizeData } from '../shared/schema.mjs';
+import { uuid } from '../shared/uuid.mjs';
 import { boundaryStamp, windowContains } from '../shared/scheduling.mjs';
 import type { AppData, Task, View } from './types';
 
 export const COLORS = ['#5a80ed', '#49aa92', '#a07ad5', '#dc9a50', '#df7f98', '#7592a7'];
 export const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
-export const uid = () => crypto.randomUUID();
+export const uid = uuid;
 export function dateKey(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -66,11 +67,6 @@ export function taskOverdue(task: Task, today = dateKey(), now = new Date()): bo
   if (task.timeWindow) return !!task.timeWindow.latest && (task.timeWindow.latest.date < today || dateKey(now) === today && boundaryStamp(task.timeWindow.latest, true) < now.getTime());
   return !!task.date && task.date < today;
 }
-export function toggleDailyProgress(task: Task, day = dateKey()): Task {
-  if (!task.longTerm || task.completed || day < task.longTerm.startDate || !!task.timeWindow?.earliest && day < task.timeWindow.earliest.date) return task;
-  const days = task.longTerm.doneDates;
-  return { ...task, example: false, longTerm: { ...task.longTerm, doneDates: days.includes(day) ? days.filter(value => value !== day) : [...days, day].sort() } };
-}
 export function createTask(patch: Partial<Task> = {}): Task {
   return {
     id: uid(), title: '', listId: 'inbox', completed: false, date: null, time: null,
@@ -104,16 +100,15 @@ export function seedData(today = dateKey()): AppData {
     ],
   };
 }
-export function validateData(value: unknown): AppData { return assertData(value) as AppData; }
+export function validateData(value: unknown): AppData { return normalizeData(value) as AppData; }
 export function tasksForView(data: AppData, view: View, query = '', today = dateKey()): Task[] {
   return data.tasks.filter(task => {
     if (view === 'search') {
       const list = data.lists.find(list => list.id === task.listId)?.name || '';
       return `${task.title} ${task.notes} ${list} ${task.subtasks.map(sub => sub.title).join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
     }
-    if (view === 'important') return !!task.longTerm;
     if (view === 'today') {
-      if (task.longTerm) return task.longTerm.startDate <= today && (!task.timeWindow?.earliest || task.timeWindow.earliest.date <= today) && (!task.completed || !!task.completedAt && dateKey(new Date(task.completedAt)) === today);
+      if (task.priority === 4) return !task.completed || !!task.completedAt && dateKey(new Date(task.completedAt)) === today;
       return taskOnDay(task, today) || taskOverdue(task, today);
     }
     if (view === 'week') return Array.from({ length: 7 }, (_, i) => addDays(today, i)).some(day => taskOnDay(task, day));
@@ -125,7 +120,7 @@ export function tasksForView(data: AppData, view: View, query = '', today = date
 }
 export function sortTasks(tasks: Task[], sort: 'date' | 'priority'): Task[] {
   const due = (task: Task) => task.timeWindow?.latest?.date || task.date || task.timeWindow?.earliest?.date || '9999';
-  return [...tasks].sort((a, b) => (sort === 'priority' ? b.priority - a.priority : 0) || due(a).localeCompare(due(b)) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
+  return [...tasks].sort((a, b) => Number(b.priority === 4) - Number(a.priority === 4) || (sort === 'priority' ? b.priority - a.priority : 0) || due(a).localeCompare(due(b)) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 }
 export interface EventSegment { task: Task; start: number; end: number; continuation: boolean; lane: number; lanes: number }
 export function dayEvents(tasks: Task[], day: string): EventSegment[] {

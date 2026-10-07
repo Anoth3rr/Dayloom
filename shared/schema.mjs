@@ -45,7 +45,7 @@ export function assertData(data) {
     if (task.longTerm !== undefined) {
       if (!object(task.longTerm) || !isValidDate(task.longTerm.startDate) || !Array.isArray(task.longTerm.doneDates) || task.longTerm.doneDates.length > 100000 || task.longTerm.doneDates.some(day => !isValidDate(day)) || new Set(task.longTerm.doneDates).size !== task.longTerm.doneDates.length) fail('长期事务的每日推进记录无效');
     }
-    if (![0, 1, 2, 3].includes(task.priority) || !str(task.notes, 10000, true)) fail('优先级或备注无效');
+    if (![0, 1, 2, 3, 4].includes(task.priority) || !str(task.notes, 10000, true)) fail('优先级或备注无效');
     if (!stamp(task.createdAt) || (task.completedAt !== null && !stamp(task.completedAt))) fail('创建或完成时间无效');
     if (task.example !== undefined && typeof task.example !== 'boolean') fail('示例标记无效');
     if (!Array.isArray(task.subtasks) || task.subtasks.length > 100) fail('子任务数量无效');
@@ -58,4 +58,14 @@ export function assertData(data) {
   if (!object(data.settings) || !['light', 'dark', 'system'].includes(data.settings.theme) || !Number.isFinite(data.settings.glass) || data.settings.glass < 55 || data.settings.glass > 100) fail('外观设置无效');
   if (data.gaming !== undefined) assertGaming(data.gaming);
   return data;
+}
+
+export function normalizeData(value) {
+  const data = assertData(value);
+  if (!data.tasks.some(task => task.longTerm !== undefined)) return data;
+  return { ...data, tasks: data.tasks.map(task => {
+    if (task.longTerm === undefined) return task;
+    const { longTerm, ...rest } = task;
+    return { ...rest, priority: 4, legacyLongTerm: longTerm };
+  }) };
 }

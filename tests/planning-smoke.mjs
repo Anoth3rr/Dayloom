@@ -67,9 +67,9 @@ try {
   await expect(reading.getByRole('button', { name: '已完成', exact: true })).toBeVisible();
   record('普通分组按本机午夜刷新；每天、指定星期、周、月事务均可创建并在今天推进');
 
-  await button('重要不紧急').click();
+  await expect(button('重要不紧急')).toHaveCount(0);
   await button('新建任务').click();
-  await expect(page.getByRole('checkbox', { name: '重要不紧急', exact: true })).toBeChecked();
+  await label('优先级').selectOption('4');
   await label('任务名称').fill('准备明年的资格考试');
   await button('时间窗口').click();
   await label('最早日期').fill('');
@@ -78,17 +78,18 @@ try {
   await expect(label('开始时间')).toHaveCount(0);
   await expect(label('预计时长')).toHaveCount(0);
   await button('创建任务').click();
-  await page.getByRole('checkbox', { name: '记录今日推进 准备明年的资格考试', exact: true }).click();
-  await expect(row('准备明年的资格考试')).toContainText('今日已推进');
+  await expect(row('准备明年的资格考试')).toContainText('非常重要');
+  await expect(page.getByRole('checkbox', { name: '完成 准备明年的资格考试', exact: true })).not.toBeChecked();
   await expect(row('准备明年的资格考试')).not.toHaveClass(/is-complete/);
   await button('今天').click();
   await expect(row('准备明年的资格考试')).toBeVisible();
   await saved();
   let stored = await read();
   assert.equal(stored.tasks[0].completed, false);
-  assert.deepEqual(stored.tasks[0].longTerm.doneDates, ['2026-10-07']);
+  assert.equal(stored.tasks[0].priority, 4);
+  assert.equal(stored.tasks[0].longTerm, undefined);
   assert.equal(stored.tasks[0].timeWindow.earliest, null);
-  record('只填远期截止日期创建长期目标；今日推进与最终完成独立保存');
+  record('取消独立栏目；非常重要任务只有远期截止日期也会显示在今天');
 
   await button('新建任务').click();
   await label('任务名称').fill('整理项目资料');
@@ -143,27 +144,26 @@ try {
   await page.screenshot({ path: path.join(outputs, 'planning-today-light.png') });
   await app.close();
   await launch();
-  await expect(row('准备明年的资格考试')).toContainText('今日已推进');
+  await expect(row('准备明年的资格考试')).toContainText('非常重要');
   await expect(row('整理项目资料')).toContainText('待安排');
   await expect(page.locator('.routine-row').filter({ hasText: '每日阅读' }).getByRole('button', { name: '已完成', exact: true })).toBeVisible();
-  record('重启后恢复长期目标、每日推进、时间窗口与周期完成记录');
+  record('重启后恢复非常重要属性、时间窗口与周期完成记录');
 
   await page.clock.fastForward(12 * 3600000 + 2000);
-  await expect(page.getByRole('checkbox', { name: '记录今日推进 准备明年的资格考试', exact: true })).not.toBeChecked();
-  await expect(row('准备明年的资格考试')).toContainText('累计 1 天');
+  await expect(page.getByRole('checkbox', { name: '完成 准备明年的资格考试', exact: true })).not.toBeChecked();
+  await expect(row('准备明年的资格考试')).toContainText('非常重要');
   await expect(page.locator('.routine-row').filter({ hasText: '每日阅读' }).getByRole('button', { name: '完成', exact: true })).toBeVisible();
   await expect(page.locator('.routine-row').filter({ hasText: '周三和周五运动' })).toHaveCount(0);
-  await page.getByRole('checkbox', { name: '记录今日推进 准备明年的资格考试', exact: true }).click();
-  await expect(row('准备明年的资格考试')).toContainText('累计 2 天');
-  await button('完成整个事务 准备明年的资格考试').click();
+  await page.getByRole('checkbox', { name: '完成 准备明年的资格考试', exact: true }).click();
   await expect(row('准备明年的资格考试')).toHaveClass(/is-complete/);
   await page.clock.fastForward(24 * 3600000);
   await expect(row('准备明年的资格考试')).toHaveCount(0);
-  await button('重要不紧急').click();
+  await button('已完成').click();
   await expect(row('准备明年的资格考试')).toHaveClass(/is-complete/);
   await page.getByRole('checkbox', { name: '恢复 准备明年的资格考试', exact: true }).click();
-  await expect(row('准备明年的资格考试')).toContainText('今日待推进');
-  record('跨午夜自动重置每日推进和普通日程；完成整个事务后停止每日出现，支持恢复');
+  await button('今天').click();
+  await expect(row('准备明年的资格考试')).toContainText('非常重要');
+  record('非常重要任务跨天继续显示；勾选完成后次日停止显示，恢复后重新每天出现');
 
   await button('设置').click();
   await button('深色').click();
@@ -178,7 +178,8 @@ try {
   await saved();
   stored = await read();
   assert.equal(stored.tasks.length, 2);
-  assert.deepEqual(stored.tasks[0].longTerm.doneDates, ['2026-10-07', '2026-10-08']);
+  assert.equal(stored.tasks[0].priority, 4);
+  assert.equal(stored.tasks[0].longTerm, undefined);
   assert.equal(stored.gaming.games[0].category, 'routine');
   assert.equal(stored.gaming.activities.length, 4);
   assert.equal(stored.tasks[1].date, null);
