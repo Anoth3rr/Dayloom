@@ -5,8 +5,8 @@ export const accentStyle = (color: string): CSSProperties => ({ '--item-color': 
 export function IconButton({ label, children, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { label: string }) {
   return <button type="button" className={`icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
 }
-export function CheckButton({ checked, onChange, label, priority = 0 }: { checked: boolean; onChange: () => void; label: string; priority?: number }) {
-  return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} className={`task-check priority-${priority} ${checked ? 'checked' : ''}`} onClick={onChange}>{checked && <Check size={12} strokeWidth={2.7} />}</button>;
+export function CheckButton({ checked, onChange, label, priority = 0, disabled = false }: { checked: boolean; onChange: () => void; label: string; priority?: number; disabled?: boolean }) {
+  return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} title={label} disabled={disabled} className={`task-check priority-${priority} ${checked ? 'checked' : ''}`} onClick={onChange}>{checked && <Check size={12} strokeWidth={2.7} />}</button>;
 }
 export function Modal({ title, children, onClose, className = '', description }: { title: string; children: ReactNode; onClose: () => void; className?: string; description?: string }) {
   const ref = useRef<HTMLDivElement>(null);

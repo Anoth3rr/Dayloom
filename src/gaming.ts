@@ -1,11 +1,12 @@
 import { addDays, clockText, dateKey, minutes, parseDate, uid, WEEKDAYS } from './domain';
-import type { AppData, GameActivity, GamePlannerData, GameProfile, GameProgress, Task } from './types';
+import type { AppData, GameActivity, GamePlannerData, GameProfile, GameProgress, Task, TimeWindow } from './types';
 
 export const KIND_NAMES = { material: '材料本', daily: '日常', weekly: '周常', monthly: '月常' } as const;
 export type OccurrenceRef = NonNullable<Task['gameOccurrence']>;
 export interface GameOccurrence {
   ref: OccurrenceRef; game: GameProfile; activity: GameActivity;
   start: Date; end: Date; plannedAt: Date; allDay: boolean; count: number;
+  timeWindow?: { start: Date; end: Date };
 }
 export const gamingData = (data: AppData): GamePlannerData => data.gaming || { games: [], activities: [], progress: [] };
 const sameRef = (a: OccurrenceRef, b: OccurrenceRef) => a.activityId === b.activityId && a.revision === b.revision && a.periodStart === b.periodStart;
@@ -15,11 +16,22 @@ export function zoneLabel(offset: number): string { return `UTC${offset < 0 ? '�
 
 // A game day begins at the configured reset, in the server's fixed UTC offset.
 export function gameDay(game: GameProfile, now = new Date()): string {
+  if (game.clock === 'local') return addDays(dateKey(now), minutes(localTime(now)) < minutes(game.resetTime) ? -1 : 0);
   return new Date(now.getTime() + (game.utcOffset - minutes(game.resetTime)) * 60000).toISOString().slice(0, 10);
 }
 function serverInstant(game: GameProfile, day: string, time: string): Date {
   const [y, m, d] = day.split('-').map(Number);
+  if (game.clock === 'local') return new Date(y, m - 1, d, Math.floor(minutes(time) / 60), minutes(time) % 60);
   return new Date(Date.UTC(y, m - 1, d, 0, minutes(time)) - game.utcOffset * 60000);
+}
+function activityWindow(activity: GameActivity, game: GameProfile, day: string) {
+  if (!activity.timeWindow) return undefined;
+  const at = (time: string) => serverInstant(game, minutes(time) < minutes(game.resetTime) ? addDays(day, 1) : day, time);
+  return { start: at(activity.timeWindow.earliest), end: at(activity.timeWindow.latest) };
+}
+function fitsActivityWindow(activity: GameActivity, game: GameProfile, at: Date): boolean {
+  const window = activityWindow(activity, game, gameDay(game, at));
+  return !window || at >= window.start && at.getTime() + Math.min(1440, activity.minutes * activity.target) * 60000 <= window.end.getTime();
 }
 function resetAt(game: GameProfile, day: string) { return serverInstant(game, day, game.resetTime); }
 function monthDate(day: string, offset: number, requestedDay: number): string {
@@ -53,16 +65,22 @@ function defaultPlan(activity: GameActivity, game: GameProfile, start: string, e
   // A newly created weekly/monthly activity still belongs to its current cycle.
   if (day < activity.startDate) day = activity.startDate;
   if (day >= end) day = addDays(end, -1);
-  if (minutes(activity.planTime) < minutes(game.resetTime)) day = addDays(day, 1);
-  return serverInstant(game, day, activity.planTime);
+  const time = activity.timeWindow?.earliest || (activity.anytime ? '12:00' : activity.planTime);
+  if (minutes(time) < minutes(game.resetTime)) day = addDays(day, 1);
+  return serverInstant(game, day, time);
 }
 function occurrence(gaming: GamePlannerData, activity: GameActivity, game: GameProfile, period: { start: string; end: string }, entries?: Map<string, GameProgress>): GameOccurrence {
   const ref = { activityId: activity.id, revision: activity.revision, periodStart: period.start };
   const entry = entries ? entries.get(occurrenceKey(ref)) : gaming.progress.find(item => sameRef(item, ref));
   const start = resetAt(game, period.start), end = resetAt(game, period.end);
   const override = entry?.plannedAt ? new Date(entry.plannedAt) : null;
-  const validOverride = !!override && override >= start && override < end && gameDay(game, override) >= activity.startDate;
-  return { ref, activity, game, start, end, plannedAt: validOverride ? override : defaultPlan(activity, game, period.start, period.end), allDay: validOverride && !!entry?.allDay, count: Math.min(activity.target, entry?.count || 0) };
+  const validOverride = !!override && override >= start && override < end && gameDay(game, override) >= activity.startDate && (entry?.allDay || fitsActivityWindow(activity, game, override));
+  const plannedAt = validOverride ? override! : defaultPlan(activity, game, period.start, period.end);
+  return { ref, activity, game, start, end, plannedAt, allDay: validOverride ? !!entry?.allDay : !!(activity.anytime || activity.timeWindow), timeWindow: activityWindow(activity, game, gameDay(game, plannedAt)), count: Math.min(activity.target, entry?.count || 0) };
+}
+export function occurrenceTimeLabel(item: GameOccurrence): string {
+  if (item.allDay && item.timeWindow) return `${localTime(item.timeWindow.start)} – ${dateKey(item.timeWindow.end) !== dateKey(item.timeWindow.start) ? '次日 ' : ''}${localTime(item.timeWindow.end)} 可安排`;
+  return item.allDay ? '待安排' : `${localTime(item.plannedAt)} · ${item.activity.minutes * item.activity.target} 分钟`;
 }
 export function currentOccurrences(data: AppData, now = new Date()): GameOccurrence[] {
   const gaming = gamingData(data);
@@ -73,6 +91,9 @@ export function currentOccurrences(data: AppData, now = new Date()): GameOccurre
     const period = periodFor(activity, game, gameDay(game, now));
     return period ? [occurrence(gaming, activity, game, period, entries)] : [];
   });
+}
+export function todayRoutines(data: AppData, now = new Date()): GameOccurrence[] {
+  return currentOccurrences(data, now).filter(item => item.game.category === 'routine' && (['daily', 'material'].includes(item.activity.kind) || dateKey(item.plannedAt) <= dateKey(now)));
 }
 export function resolveOccurrence(data: AppData, ref: OccurrenceRef): GameOccurrence | null {
   const gaming = gamingData(data), activity = gaming.activities.find(item => item.id === ref.activityId && item.revision === ref.revision);
@@ -112,6 +133,7 @@ export function calendarData(data: AppData, firstDay: string, lastDay: string): 
       title: `${item.activity.title}${item.activity.target > 1 ? ` · ${item.count}/${item.activity.target}` : ''}`,
       listId: `game-list:${item.game.id}`, completed: item.count >= item.activity.target,
       date: dateKey(item.plannedAt), time: item.allDay ? null : localTime(item.plannedAt),
+      ...(item.timeWindow ? { timeWindow: { earliest: { date: dateKey(item.timeWindow.start), time: localTime(item.timeWindow.start) }, latest: { date: dateKey(item.timeWindow.end), time: localTime(item.timeWindow.end) } } as TimeWindow } : {}),
       duration: Math.min(1440, item.activity.minutes * item.activity.target), priority: 0 as const,
       notes: item.activity.notes, subtasks: [], reminder: false,
       createdAt: item.start.toISOString(), completedAt: null,
@@ -136,6 +158,7 @@ export function planOccurrence(data: AppData, ref: OccurrenceRef, day: string, t
   at.setHours(Math.floor(value / 60), value % 60, 0, 0);
   if (dateKey(at) !== day || (time && localTime(at) !== time)) throw new Error('该时间在本机时区中不存在，请选择其他时间');
   if (at < item.start || at >= item.end || gameDay(item.game, at) < item.activity.startDate) throw new Error('请安排在本期开放时间内；材料本只能安排在该次开放期间');
+  if (time && !fitsActivityWindow(item.activity, item.game, at)) throw new Error('具体安排及预计用时必须在本期的时间窗口内');
   return saveProgress(data, ref, { plannedAt: at.toISOString(), allDay: time === null });
 }
 export function saveActivity(data: AppData, value: GameActivity): AppData {
@@ -146,7 +169,7 @@ export function saveActivity(data: AppData, value: GameActivity): AppData {
 }
 export function saveGame(data: AppData, value: GameProfile): AppData {
   const gaming = gamingData(data), old = gaming.games.find(item => item.id === value.id);
-  const changed = old && (old.resetTime !== value.resetTime || old.utcOffset !== value.utcOffset || old.weekResetDay !== value.weekResetDay || old.monthResetDay !== value.monthResetDay);
+  const changed = old && (old.clock !== value.clock || old.resetTime !== value.resetTime || old.utcOffset !== value.utcOffset || old.weekResetDay !== value.weekResetDay || old.monthResetDay !== value.monthResetDay);
   return { ...data, gaming: { ...gaming, games: old ? gaming.games.map(item => item.id === value.id ? value : item) : [...gaming.games, value], activities: changed ? gaming.activities.map(item => item.gameId === value.id ? { ...item, revision: item.revision + 1 } : item) : gaming.activities } };
 }
 export function removeActivity(data: AppData, id: string): AppData {
@@ -157,12 +180,13 @@ export function removeGame(data: AppData, id: string): AppData {
   const gaming = gamingData(data), ids = new Set(gaming.activities.filter(item => item.gameId === id).map(item => item.id));
   return { ...data, gaming: { games: gaming.games.filter(item => item.id !== id), activities: gaming.activities.filter(item => !ids.has(item.id)), progress: gaming.progress.filter(item => !ids.has(item.activityId)) } };
 }
-export function newGame(): GameProfile { return { id: uid(), name: '', color: '#a07ad5', utcOffset: 480, resetTime: '04:00', weekResetDay: 1, monthResetDay: 1 }; }
+export function newGame(category: 'routine' | 'game' = 'game'): GameProfile { return { id: uid(), name: '', color: category === 'routine' ? '#49aa92' : '#a07ad5', category, clock: category === 'routine' ? 'local' : 'fixed', utcOffset: category === 'routine' ? -new Date().getTimezoneOffset() : 480, resetTime: category === 'routine' ? '00:00' : '04:00', weekResetDay: 1, monthResetDay: 1 }; }
 export function newActivity(game: GameProfile, now = new Date()): GameActivity {
-  return { id: uid(), gameId: game.id, title: '', kind: 'daily', weekdays: [1, 4, 0], target: 1, planTime: '20:00', planWeekday: 6, planMonthDay: 1, minutes: 15, energy: 0, notes: '', paused: false, startDate: gameDay(game, now), revision: 1 };
+  return { id: uid(), gameId: game.id, title: '', kind: 'daily', weekdays: [1, 4, 0], target: 1, planTime: '20:00', planWeekday: game.category === 'routine' ? 1 : 6, planMonthDay: 1, minutes: 15, energy: 0, notes: '', paused: false, startDate: gameDay(game, now), revision: 1, ...(game.category === 'routine' ? { anytime: true } : {}) };
 }
-export function ruleLabel(activity: GameActivity): string {
-  if (activity.kind === 'material') return `每周${[1, 2, 3, 4, 5, 6, 0].filter(day => activity.weekdays.includes(day)).map(day => WEEKDAYS[day]).join('、')}开放`;
+export function kindName(activity: GameActivity, game: GameProfile): string { return game.category === 'routine' ? ({ material: '指定星期', daily: '每天', weekly: '每周', monthly: '每月' })[activity.kind] : KIND_NAMES[activity.kind]; }
+export function ruleLabel(activity: GameActivity, game?: GameProfile): string {
+  if (activity.kind === 'material') return `每周${[1, 2, 3, 4, 5, 6, 0].filter(day => activity.weekdays.includes(day)).map(day => WEEKDAYS[day]).join('、')}${game?.category === 'routine' ? '执行' : '开放'}`;
   return ({ daily: '每天', weekly: '每周', monthly: '每月' })[activity.kind] + ` ${activity.target} 次`;
 }
 export function remainingLabel(end: Date, now: Date): string {

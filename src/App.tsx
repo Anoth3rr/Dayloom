@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ChevronRight, Maximize2, Minus, PanelRightClose, PanelRightOpen, Square, X } from 'lucide-react';
-import { createTask, dateKey, deleteList, moveTaskTo, validateData } from './domain';
+import { createTask, dateKey, deleteList, moveTaskTo, toggleDailyProgress, validateData } from './domain';
 import type { AppData, Task, TaskList, View } from './types';
 import { loadData, saveData } from './storage';
 import { Sidebar } from './components/Sidebar';
@@ -10,7 +10,7 @@ import { Calendar } from './components/Calendar';
 import { ListEditor, TaskEditor } from './components/Editors';
 import { Settings } from './components/Settings';
 import { IconButton } from './components/ui';
-import { GamePlanner } from './components/GamePlanner';
+import { GamePlanner, RecurringToday } from './components/GamePlanner';
 import { GameDialogs } from './components/GameEditors';
 import type { GameDialog } from './components/GameEditors';
 import { planOccurrence } from './gaming';
@@ -73,7 +73,7 @@ export default function App() {
     return () => media.removeEventListener('change', apply);
   }, [data?.settings.theme]);
   const openNew = useCallback((date?: string, time?: string) => {
-    setEditor({ task: createTask({ date: date || (view === 'today' || view === 'week' ? today : null), time: time || null, listId: view.startsWith('list:') ? view.slice(5) : 'inbox' }), isNew: true });
+    setEditor({ task: createTask({ date: date || (view === 'today' || view === 'week' ? today : null), time: time || null, listId: view.startsWith('list:') ? view.slice(5) : 'inbox', ...(view === 'important' ? { longTerm: { startDate: today, doneDates: [] } } : {}) }), isNew: true });
   }, [view, today]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -109,11 +109,11 @@ export default function App() {
   if (loadError) return <div className="startup-state"><div className="brand-mark"><Check /></div><h1>暂时无法读取记录</h1><p>{loadError}</p><button className="button primary" onClick={() => location.reload()}>重新读取</button>{window.desktop && <button className="button secondary" onClick={() => window.desktop?.showDataFolder()}>打开数据目录</button>}</div>;
   if (!data) return <div className="startup-state"><div className="brand-mark loading-mark"><Check /></div><p>正在加载…</p></div>;
   const edit = (task: Task) => task.gameOccurrence ? setGameDialog({ kind: 'occurrence', ref: task.gameOccurrence }) : setEditor({ task, isNew: false });
-  const viewName = ({ today: '今天', inbox: '收集箱', week: '最近 7 天', calendar: '日历', games: '游戏日程', all: '全部任务', completed: '已完成', search: '搜索' } as Record<string, string>)[view] || data.lists.find(list => list.id === view.slice(5))?.name;
+  const viewName = ({ today: '今天', inbox: '收集箱', week: '最近 7 天', calendar: '日历', games: '周期事务', important: '重要不紧急', all: '全部任务', completed: '已完成', search: '搜索' } as Record<string, string>)[view] || data.lists.find(list => list.id === view.slice(5))?.name;
   return <div className={`app-backdrop ${window.desktop ? 'native' : 'preview'} ${immersive ? 'immersive' : ''}`} style={{ '--glass-opacity': data.settings.glass / 100 } as React.CSSProperties}>
     <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div className="ambient ambient-three" />
     <div className="app-window"><div className="titlebar"><div className="titlebar-label">Dayloom · 拾序</div><div className="breadcrumbs"><span>我的空间</span><ChevronRight size={11} /><span>{viewName}</span></div><div className="titlebar-actions">{view !== 'calendar' && view !== 'games' && <IconButton label={showAgenda ? '收起日程侧栏' : '展开日程侧栏'} onClick={() => setShowAgenda(!showAgenda)}>{showAgenda ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}</IconButton>}{window.desktop ? <div className="window-controls"><IconButton label="最小化" onClick={() => window.desktop?.window('minimize')}><Minus size={14} /></IconButton><IconButton label="最大化或还原" onClick={() => window.desktop?.window('maximize')}><Square size={11} /></IconButton><IconButton label="关闭应用" className="window-close" onClick={() => window.desktop?.window('close')}><X size={16} /></IconButton></div> : <IconButton label="切换沉浸预览" onClick={() => setImmersive(!immersive)}><Maximize2 size={14} /></IconButton>}</div></div>
-      <div className="workspace"><Sidebar data={data} view={view} onView={setView} onSearch={() => setView('search')} onSettings={() => setSettings(true)} onList={list => setListEditor({ list })} status={status} />{view === 'games' ? <GamePlanner data={data} now={now} update={update} onDialog={setGameDialog} /> : view === 'calendar' ? <Calendar data={data} today={today} onNew={openNew} onEdit={edit} onMove={(task, date, time) => { if (update(current => task.gameOccurrence ? planOccurrence(current, task.gameOccurrence, date, time) : { ...current, tasks: current.tasks.map(item => item.id === task.id ? moveTaskTo(item, date, time) : item) })) notify('日程已调整'); }} /> : <><TaskView data={data} view={view} query={query} onQuery={setQuery} onAdd={task => { update(current => ({ ...current, tasks: [...current.tasks, task] })); notify('任务已创建'); }} onToggle={toggle} onEdit={edit} onNew={() => openNew()} onCalendar={() => setView('calendar')} today={today} />{showAgenda && <Agenda data={data} today={today} onEdit={edit} onNew={date => openNew(date, '09:00')} onCalendar={() => setView('calendar')} />}</>}</div>
+      <div className="workspace"><Sidebar data={data} view={view} onView={setView} onSearch={() => setView('search')} onSettings={() => setSettings(true)} onList={list => setListEditor({ list })} status={status} />{view === 'games' ? <GamePlanner data={data} now={now} update={update} onDialog={setGameDialog} /> : view === 'calendar' ? <Calendar data={data} today={today} onNew={openNew} onEdit={edit} onMove={(task, date, time) => { if (update(current => task.gameOccurrence ? planOccurrence(current, task.gameOccurrence, date, time) : { ...current, tasks: current.tasks.map(item => item.id === task.id ? moveTaskTo(item, date, time) : item) })) notify('日程已调整'); }} /> : <><TaskView data={data} view={view} query={query} onQuery={setQuery} onAdd={task => { update(current => ({ ...current, tasks: [...current.tasks, task] })); notify('任务已创建'); }} onToggle={toggle} onDaily={id => update(current => ({ ...current, tasks: current.tasks.map(task => task.id === id ? toggleDailyProgress(task, today) : task) }))} recurring={<RecurringToday data={data} now={now} update={update} onDialog={setGameDialog} onManage={() => setView('games')} />} onEdit={edit} onNew={() => openNew()} onCalendar={() => setView('calendar')} today={today} />{showAgenda && <Agenda data={data} today={today} onEdit={edit} onNew={date => openNew(date, '09:00')} onCalendar={() => setView('calendar')} />}</>}</div>
       {gameDialog && <GameDialogs dialog={gameDialog} data={data} now={now} onDialog={setGameDialog} update={update} />}
       {editor && <TaskEditor key={editor.task.id} task={editor.task} isNew={editor.isNew} data={data} onSave={saveTask} onDelete={remove} onClose={() => setEditor(null)} />}
       {listEditor && <ListEditor list={listEditor.list} data={data} onSave={saveList} onDelete={removeList} onClose={() => setListEditor(null)} />}

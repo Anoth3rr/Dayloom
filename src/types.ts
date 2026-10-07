@@ -1,23 +1,31 @@
 export type Priority = 0 | 1 | 2 | 3;
 export type Theme = 'light' | 'dark' | 'system';
 export interface Subtask { id: string; title: string; completed: boolean }
+export interface TimeBoundary { date: string; time: string | null }
+export interface TimeWindow { earliest: TimeBoundary | null; latest: TimeBoundary | null }
 export interface Task {
   id: string; title: string; listId: string; completed: boolean;
   date: string | null; time: string | null; duration: number;
   priority: Priority; notes: string; subtasks: Subtask[]; reminder: boolean;
   createdAt: string; completedAt: string | null; example?: boolean;
+  timeWindow?: TimeWindow;
+  longTerm?: { startDate: string; doneDates: string[] };
   gameOccurrence?: { activityId: string; revision: number; periodStart: string };
 }
 export type ActivityKind = 'daily' | 'material' | 'weekly' | 'monthly';
 export interface GameProfile {
   id: string; name: string; color: string; utcOffset: number; resetTime: string;
   weekResetDay: number; monthResetDay: number;
+  category?: 'routine' | 'game';
+  clock?: 'local' | 'fixed';
 }
 export interface GameActivity {
   id: string; gameId: string; title: string; kind: ActivityKind; weekdays: number[];
   target: number; planTime: string; planWeekday: number; planMonthDay: number;
   minutes: number; energy: number; notes: string; paused: boolean; startDate: string;
   revision: number;
+  anytime?: boolean;
+  timeWindow?: { earliest: string; latest: string };
 }
 export interface GameProgress {
   activityId: string; revision: number; periodStart: string; count: number;
@@ -30,7 +38,7 @@ export interface AppData {
   settings: { theme: Theme; glass: number };
   gaming?: GamePlannerData;
 }
-export type View = 'today' | 'inbox' | 'week' | 'calendar' | 'games' | 'all' | 'completed' | `list:${string}` | 'search';
+export type View = 'today' | 'inbox' | 'week' | 'calendar' | 'games' | 'important' | 'all' | 'completed' | `list:${string}` | 'search';
 export interface DesktopAPI {
   load: () => Promise<{ data: AppData | null; warning?: string; path: string }>;
   save: (data: AppData) => Promise<void>;

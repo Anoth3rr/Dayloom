@@ -1,4 +1,5 @@
 import { assertData } from '../shared/schema.mjs';
+import { boundaryStamp, windowContains } from '../shared/scheduling.mjs';
 import type { AppData, Task, View } from './types';
 
 export const COLORS = ['#5a80ed', '#49aa92', '#a07ad5', '#dc9a50', '#df7f98', '#7592a7'];
@@ -34,14 +35,41 @@ export function friendlyDate(key: string | null, today = dateKey()): string {
   if (key === addDays(today, 1)) return '明天';
   if (key === addDays(today, -1)) return '昨天';
   const date = parseDate(key);
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
+  return `${date.getFullYear() !== parseDate(today).getFullYear() ? `${date.getFullYear()}年` : ''}${date.getMonth() + 1}月${date.getDate()}日`;
 }
 export const minutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 export const clockText = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 export function timeRange(task: Task): string {
+  if (!task.time && task.timeWindow) return windowLabel(task);
   if (!task.time) return '全天';
   const end = minutes(task.time) + task.duration;
   return `${task.time} – ${end >= 1440 ? '次日 ' : ''}${clockText(end)}`;
+}
+export function windowLabel(task: Task): string {
+  const window = task.timeWindow;
+  if (!window) return '';
+  const label = (value: NonNullable<typeof window.earliest>) => `${friendlyDate(value.date)}${value.time ? ` ${value.time}` : ''}`;
+  if (!window.earliest) return `${label(window.latest!)}前完成`;
+  if (!window.latest) return `${label(window.earliest)}起可安排`;
+  if (window.earliest.date === window.latest.date) return `${friendlyDate(window.earliest.date)} ${window.earliest.time || '00:00'} – ${window.latest.time || '24:00'}`;
+  return `${label(window.earliest)} – ${label(window.latest)}`;
+}
+export function taskOnDay(task: Task, day: string): boolean {
+  if (task.date) return task.date === day;
+  if (!task.timeWindow) return false;
+  if (task.completed && task.completedAt && day > dateKey(new Date(task.completedAt))) return false;
+  const first = task.timeWindow.earliest?.date || dateKey(new Date(task.createdAt));
+  return day >= first && (!task.timeWindow.latest || day <= task.timeWindow.latest.date);
+}
+export function taskOverdue(task: Task, today = dateKey(), now = new Date()): boolean {
+  if (task.completed) return false;
+  if (task.timeWindow) return !!task.timeWindow.latest && (task.timeWindow.latest.date < today || dateKey(now) === today && boundaryStamp(task.timeWindow.latest, true) < now.getTime());
+  return !!task.date && task.date < today;
+}
+export function toggleDailyProgress(task: Task, day = dateKey()): Task {
+  if (!task.longTerm || task.completed || day < task.longTerm.startDate || !!task.timeWindow?.earliest && day < task.timeWindow.earliest.date) return task;
+  const days = task.longTerm.doneDates;
+  return { ...task, example: false, longTerm: { ...task.longTerm, doneDates: days.includes(day) ? days.filter(value => value !== day) : [...days, day].sort() } };
 }
 export function createTask(patch: Partial<Task> = {}): Task {
   return {
@@ -83,8 +111,12 @@ export function tasksForView(data: AppData, view: View, query = '', today = date
       const list = data.lists.find(list => list.id === task.listId)?.name || '';
       return `${task.title} ${task.notes} ${list} ${task.subtasks.map(sub => sub.title).join(' ')}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
     }
-    if (view === 'today') return task.date === today || (!task.completed && !!task.date && task.date < today);
-    if (view === 'week') return !!task.date && task.date >= today && task.date <= addDays(today, 6);
+    if (view === 'important') return !!task.longTerm;
+    if (view === 'today') {
+      if (task.longTerm) return task.longTerm.startDate <= today && (!task.timeWindow?.earliest || task.timeWindow.earliest.date <= today) && (!task.completed || !!task.completedAt && dateKey(new Date(task.completedAt)) === today);
+      return taskOnDay(task, today) || taskOverdue(task, today);
+    }
+    if (view === 'week') return Array.from({ length: 7 }, (_, i) => addDays(today, i)).some(day => taskOnDay(task, day));
     if (view === 'inbox') return task.listId === 'inbox';
     if (view === 'completed') return task.completed;
     if (view.startsWith('list:')) return task.listId === view.slice(5);
@@ -92,7 +124,8 @@ export function tasksForView(data: AppData, view: View, query = '', today = date
   });
 }
 export function sortTasks(tasks: Task[], sort: 'date' | 'priority'): Task[] {
-  return [...tasks].sort((a, b) => (sort === 'priority' ? b.priority - a.priority : 0) || (a.date || '9999').localeCompare(b.date || '9999') || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
+  const due = (task: Task) => task.timeWindow?.latest?.date || task.date || task.timeWindow?.earliest?.date || '9999';
+  return [...tasks].sort((a, b) => (sort === 'priority' ? b.priority - a.priority : 0) || due(a).localeCompare(due(b)) || (a.time || '99').localeCompare(b.time || '99') || b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 }
 export interface EventSegment { task: Task; start: number; end: number; continuation: boolean; lane: number; lanes: number }
 export function dayEvents(tasks: Task[], day: string): EventSegment[] {
@@ -121,8 +154,10 @@ export function dayEvents(tasks: Task[], day: string): EventSegment[] {
   finish(); return events;
 }
 export function moveTaskTo(task: Task, date: string, time: string | null): Task {
+  if (!windowContains(task.timeWindow, date, time, time ? task.duration : 0)) throw new Error('具体安排必须在最早开始和最晚完成之间；请先调整时间窗口或预计用时');
   return { ...task, date, time, reminder: time ? task.reminder : false, example: false };
 }
+export { boundaryStamp, windowContains };
 export function deleteList(data: AppData, id: string): AppData {
   if (id === 'inbox') return data;
   return { ...data, lists: data.lists.filter(list => list.id !== id), tasks: data.tasks.map(task => task.listId === id ? { ...task, listId: 'inbox', example: false } : task) };

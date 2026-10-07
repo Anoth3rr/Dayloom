@@ -1,6 +1,6 @@
 {
   "name": "shixu-desktop",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "description": "Dayloom · 拾序 — 任务与日程桌面应用",
   "author": "Shixu",
@@ -12,10 +12,11 @@
     "desktop:dev": "node scripts/dev.mjs",
     "build": "tsc -b && vite build",
     "start": "electron .",
-    "test": "tsx --test tests/domain.test.ts tests/gaming.test.ts",
+    "test": "tsx --test tests/domain.test.ts tests/gaming.test.ts tests/planning.test.ts",
     "test:desktop": "node tests/desktop-smoke.mjs",
     "test:games": "node tests/game-planner-smoke.mjs",
-    "package": "npm run build && electron-builder --win portable --x64"
+    "package": "npm run build && electron-builder --win portable --x64",
+    "test:planning": "node tests/planning-smoke.mjs"
   },
   "build": {
     "appId": "app.shixu.desktop",
@@ -38,7 +39,7 @@
       "signExecutable": false
     },
     "portable": {
-      "artifactName": "Dayloom-1.1.1-Windows.exe"
+      "artifactName": "Dayloom-1.2.0-Windows.exe"
     }
   },
   "dependencies": {

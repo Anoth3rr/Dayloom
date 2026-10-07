@@ -1,4 +1,5 @@
 import { assertGaming } from './gaming-schema.mjs';
+import { boundaryStamp, windowContains } from './scheduling.mjs';
 
 export function isValidDate(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -34,6 +35,16 @@ export function assertData(data) {
     if (task.time !== null && (typeof task.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(task.time) || !task.date)) fail('时间无效');
     if (task.reminder && (!task.date || !task.time)) fail('提醒缺少日期或时间');
     if (!Number.isInteger(task.duration) || task.duration < 5 || task.duration > 1440) fail('时长必须为 5–1440 分钟');
+    if (task.timeWindow !== undefined) {
+      const window = task.timeWindow;
+      const validBoundary = b => b === null || (object(b) && isValidDate(b.date) && (b.time === null || (typeof b.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(b.time))));
+      if (!object(window) || !validBoundary(window.earliest) || !validBoundary(window.latest) || (!window.earliest && !window.latest)) fail('时间窗口至少需要一个有效边界');
+      if (boundaryStamp(window.earliest) > boundaryStamp(window.latest, true)) fail('最晚完成时间不能早于最早开始时间');
+      if (task.date && !windowContains(window, task.date, task.time, task.time ? task.duration : 0)) fail('具体安排必须在任务时间窗口内');
+    }
+    if (task.longTerm !== undefined) {
+      if (!object(task.longTerm) || !isValidDate(task.longTerm.startDate) || !Array.isArray(task.longTerm.doneDates) || task.longTerm.doneDates.length > 100000 || task.longTerm.doneDates.some(day => !isValidDate(day)) || new Set(task.longTerm.doneDates).size !== task.longTerm.doneDates.length) fail('长期事务的每日推进记录无效');
+    }
     if (![0, 1, 2, 3].includes(task.priority) || !str(task.notes, 10000, true)) fail('优先级或备注无效');
     if (!stamp(task.createdAt) || (task.completedAt !== null && !stamp(task.completedAt))) fail('创建或完成时间无效');
     if (task.example !== undefined && typeof task.example !== 'boolean') fail('示例标记无效');

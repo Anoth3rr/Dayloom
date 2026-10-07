@@ -183,7 +183,7 @@ test('备份拒绝非法规则、悬空记录、重复周期和不存在的日�
     (d: AppData) => { d.gaming!.activities[0].kind = 'material'; d.gaming!.activities[0].weekdays = []; },
     (d: AppData) => { d.gaming!.progress = [{ ...item.ref, count: 1 }, { ...item.ref, count: 0 }]; },
     (d: AppData) => { d.gaming!.progress = [{ ...item.ref, count: 1, plannedAt: '2026-02-30T12:00:00.000Z' }]; },
-  ]) { const bad = structuredClone(data); mutate(bad); assert.throws(() => validateData(bad), /游戏日程格式/); }
+  ]) { const bad = structuredClone(data); mutate(bad); assert.throws(() => validateData(bad), /周期事务格式/); }
 });
 test('所有周期计划都落在实际开放区间内（完整闰年及极端时区）', () => {
   for (const offset of [-720, 345, 840]) for (const reset of [1, 15, 29, 31]) {

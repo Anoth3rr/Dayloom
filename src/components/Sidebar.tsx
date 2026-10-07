@@ -1,7 +1,7 @@
-import { CalendarDays, CalendarRange, Check, CheckCheck, ChevronRight, CloudOff, Gamepad2, Hash, Inbox, ListChecks, MoreHorizontal, Plus, Search, Settings2, Sun } from 'lucide-react';
-import { currentOccurrences } from '../gaming';
+import { CalendarDays, CalendarRange, Check, CheckCheck, ChevronRight, CloudOff, Repeat2, Target, Hash, Inbox, ListChecks, MoreHorizontal, Plus, Search, Settings2, Sun } from 'lucide-react';
+import { currentOccurrences, todayRoutines } from '../gaming';
 import type { AppData, TaskList, View } from '../types';
-import { tasksForView } from '../domain';
+import { dateKey, tasksForView } from '../domain';
 import { accentStyle, IconButton } from './ui';
 
 export function Sidebar({ data, view, onView, onSearch, onSettings, onList, status }: { data: AppData; view: View; onView: (view: View) => void; onSearch: () => void; onSettings: () => void; onList: (list?: TaskList) => void; status: string }) {
@@ -10,7 +10,8 @@ export function Sidebar({ data, view, onView, onSearch, onSettings, onList, stat
     { id: 'today', label: '今天', icon: Sun },
     { id: 'week', label: '最近 7 天', icon: CalendarRange },
     { id: 'calendar', label: '日历', icon: CalendarDays },
-    { id: 'games', label: '游戏日程', icon: Gamepad2 },
+    { id: 'games', label: '周期事务', icon: Repeat2 },
+    { id: 'important', label: '重要不紧急', icon: Target },
     { id: 'all', label: '全部任务', icon: ListChecks },
   ] as const;
   return <aside className="sidebar">
@@ -18,7 +19,7 @@ export function Sidebar({ data, view, onView, onSearch, onSettings, onList, stat
     <button className="search-trigger" onClick={onSearch}><Search size={16} /><span>搜索任务</span><kbd>Ctrl K</kbd></button>
     <nav className="main-nav" aria-label="智能清单">
       {items.map(({ id, label, icon: Icon }) => {
-        const count = id === 'calendar' ? 0 : id === 'games' ? currentOccurrences(data).filter(item => item.count < item.activity.target).length : tasksForView(data, id).filter(task => !task.completed).length;
+        const count = id === 'calendar' ? 0 : id === 'games' ? currentOccurrences(data).filter(item => item.count < item.activity.target).length : tasksForView(data, id).filter(task => !task.completed && (id !== 'today' || !task.longTerm?.doneDates.includes(dateKey()))).length + (id === 'today' ? todayRoutines(data).filter(item => item.count < item.activity.target).length : 0);
         return <button aria-label={label} aria-current={view === id ? 'page' : undefined} className={`nav-item ${view === id ? 'active' : ''}`} key={id} onClick={() => onView(id)}><Icon size={18} strokeWidth={1.8} /><span>{label}</span>{count > 0 && <span className="nav-count">{count}</span>}</button>;
       })}
     </nav>
