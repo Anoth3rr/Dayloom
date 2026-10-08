@@ -1,10 +1,10 @@
 import type { AppData } from './types';
 export interface AccountUser { id: string; username: string; name: string }
-export interface AccountSession { endpoint: string; user: AccountUser; expiresAt: number; remembered?: boolean }
-export interface PendingSync { id: string; revision: number; data: AppData }
+export interface AccountSession { endpoint: string; user: AccountUser; expiresAt: number; remembered?: boolean; provider?: 'webdav'; folder?: string }
+export interface PendingSync { id: string; revision: number; data: AppData; clientId?: string; sequence?: number }
 export interface WorkspaceEnvelope { version: 1; data: AppData; sync: { revision: number; base: AppData; pending?: PendingSync; lastSyncedAt?: number } }
 export interface ApiResponse { status: number; body: Record<string, unknown> }
-export type AccountOperation = 'register' | 'login' | 'pull' | 'push' | 'password' | 'logout';
+export type AccountOperation = 'register' | 'login' | 'pull' | 'push' | 'password' | 'logout' | 'webdav-connect' | 'webdav-test' | 'accounts' | 'switch' | 'forget';
 export interface AccountCall { operation: AccountOperation; endpoint?: string; body?: unknown; revision?: number }
 export interface AccountBridge {
   session: () => Promise<AccountSession | null>;
@@ -21,6 +21,7 @@ export interface WorkspaceAdapter extends AccountBridge {
 export type SyncStatus = 'local' | 'syncing' | 'synced' | 'pending' | 'offline' | 'expired' | 'error';
 export interface WorkspaceState {
   data: AppData | null; session: AccountSession | null; path: string;
+  accounts: AccountSession[];
   saveStatus: string; syncStatus: SyncStatus; syncError: string;
   lastSyncedAt?: number; busy: boolean; loadError: string;
   notice?: { id: number; message: string };

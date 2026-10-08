@@ -1,8 +1,10 @@
 import { emptyData, equal, mergeData, normalizeEndpoint } from '../shared/sync-data.mjs';
 import { uuid } from '../shared/uuid.mjs';
+import { profileKey } from '../shared/account-service.mjs';
+import type { WebdavCredentials } from '../shared/webdav.mjs';
 import { validateData } from './domain';
 import type { AppData } from './types';
-import type { AccountSession, ApiResponse, WorkspaceAdapter, WorkspaceEnvelope, WorkspaceState } from './account-types';
+import type { AccountCall, AccountSession, ApiResponse, WorkspaceAdapter, WorkspaceEnvelope, WorkspaceState } from './account-types';
 
 class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -12,7 +14,9 @@ function checked(result: ApiResponse) {
   return result.body;
 }
 export class WorkspaceController {
-  private state: WorkspaceState = { data: null, session: null, path: '', saveStatus: '正在读取', syncStatus: 'local', syncError: '', busy: false, loadError: '' };
+  private state: WorkspaceState = { data: null, session: null, accounts: [], path: '', saveStatus: '正在读取', syncStatus: 'local', syncError: '', busy: false, loadError: '' };
+  private clientId = uuid();
+  private sequence = 0;
   private listeners = new Set<() => void>();
   private envelope: WorkspaceEnvelope | null = null;
   private key: string | null = null;
@@ -34,12 +38,13 @@ export class WorkspaceController {
       const session = await this.adapter.session();
       this.emit({ session });
       await this.open(session);
+      await this.refreshAccounts();
       this.startTimer();
       if (session && this.options.automatic !== false) void this.syncNow();
     } catch (error) { this.emit({ loadError: String((error as Error).message || error) }); }
   }
   private async open(session: AccountSession | null) {
-    this.key = session ? `${normalizeEndpoint(session.endpoint)}\0${session.user.id}` : null;
+    this.key = session ? profileKey(session) : null;
     if (!this.key) {
       const loaded = await this.adapter.loadGuest(); this.envelope = null;
       this.emit({ data: validateData(loaded.data), session: null, path: loaded.path, syncStatus: 'local', syncError: '', lastSyncedAt: undefined, loadError: '' });
@@ -124,13 +129,13 @@ export class WorkspaceController {
             const lastSyncedAt = Date.now(); this.envelope!.sync.lastSyncedAt = lastSyncedAt;
             this.emit({ syncStatus: 'synced', lastSyncedAt }); return;
           }
-          this.envelope!.sync.pending = { id: uuid(), revision: this.envelope!.sync.revision, data: structuredClone(this.state.data!) };
+          this.envelope!.sync.pending = { id: uuid(), revision: this.envelope!.sync.revision, data: structuredClone(this.state.data!), ...(this.state.session?.provider === 'webdav' ? { clientId: this.clientId, sequence: ++this.sequence } : {}) };
           await this.persist(); if (!current()) return;
         }
         const pending = structuredClone(this.envelope!.sync.pending!);
         const response = await this.adapter.call({ operation: 'push', body: pending });
         if (!current()) return;
-        if (!Number.isSafeInteger(response.body.revision) || !response.body.data) checked(response);
+        if (!Number.isSafeInteger(response.body.revision) || Number(response.body.revision) < 0 || !response.body.data) { checked(response); throw new Error('同步响应格式无效'); }
         if (response.status === 409 && response.body.data) {
           this.applyRemote(validateData(response.body.data), Number(response.body.revision), this.envelope!.sync.base);
         } else {
@@ -149,25 +154,40 @@ export class WorkspaceController {
       this.emit({ syncStatus: status === 401 ? 'expired' : status ? 'error' : 'offline', syncError: status ? (error as Error).message : '暂时无法连接同步服务，修改已留在本机，稍后自动重试。' });
     }
   }
-  login = async (operation: 'login' | 'register', endpoint: string, username: string, password: string, name: string, mergeGuest: boolean) => {
+  private async refreshAccounts() {
+    const result = await this.adapter.call({ operation: 'accounts' });
+    if (result.status < 300 && Array.isArray(result.body.accounts)) this.emit({ accounts: result.body.accounts as AccountSession[] });
+  }
+  testWebdav = async (endpoint: string, credentials: WebdavCredentials) => {
+    checked(await this.adapter.call({ operation: 'webdav-test', endpoint, body: credentials }));
+  };
+  connectWebdav = (endpoint: string, credentials: WebdavCredentials, mergeCurrent: boolean) => this.enterAccount({ operation: 'webdav-connect', endpoint, body: credentials }, mergeCurrent);
+  switchAccount = (session: AccountSession) => this.enterAccount({ operation: 'switch', body: { key: profileKey(session) } }, false);
+  forgetAccount = async (session: AccountSession) => {
+    checked(await this.adapter.call({ operation: 'forget', body: { key: profileKey(session) } }));
+    await this.refreshAccounts(); this.notice('已移除保存的账号凭据，本地缓存仍保留。');
+  };
+  login = (operation: 'login' | 'register', endpoint: string, username: string, password: string, name: string, mergeGuest: boolean) => this.enterAccount({ operation, endpoint: normalizeEndpoint(endpoint), body: { username, password, name } }, mergeGuest);
+  private async enterAccount(request: AccountCall, mergeCurrent: boolean) {
     if (this.state.busy) return;
     this.stop(); const previous = this.state; this.emit({ busy: true });
     let authenticated = false;
     try {
       await this.writes;
-      const guest = mergeGuest && !previous.session ? (await this.adapter.loadGuest()).data : null;
-      const result = checked(await this.adapter.call({ operation, endpoint: normalizeEndpoint(endpoint), body: { username, password, name } }));
+      const guest = mergeCurrent ? structuredClone(previous.data) : null;
+      const result = checked(await this.adapter.call(request));
       const session = result.session as AccountSession;
       if (!session?.user?.id) throw new Error('登录响应无效');
       authenticated = true; this.emit({ data: null, session, loadError: '' });
       await this.open(session);
+      await this.refreshAccounts();
       await this.syncNow();
-      if (guest) {
+      if (guest && (!previous.session || profileKey(previous.session) !== profileKey(session))) {
         const imported = { ...guest, tasks: guest.tasks.filter(task => !task.example), settings: this.state.data!.settings };
         const result = mergeData(emptyData(), imported, this.state.data!);
         this.envelope!.data = result.data; this.emit({ data: result.data, syncStatus: 'pending' }); await this.persist(); await this.syncNow();
       }
-      this.startTimer(); this.notice(operation === 'register' ? '账号已创建' : '已登录账号');
+      this.startTimer(); this.notice(request.operation === 'webdav-connect' ? 'WebDAV 账号已连接' : request.operation === 'switch' ? '已切换账号' : request.operation === 'register' ? '账号已创建' : '已登录账号');
     } catch (error) {
       if (!authenticated) { this.emit(previous); this.startTimer(); }
       else this.emit({ data: null, loadError: (error as Error).message });
@@ -180,7 +200,7 @@ export class WorkspaceController {
     try {
       await this.writes;
       await this.adapter.call({ operation: 'logout' });
-      this.emit({ data: null, session: null }); await this.open(null); this.notice('已退出账号，本机账号缓存已保留。');
+      this.emit({ data: null, session: null }); await this.open(null); this.notice('已返回本地模式，账号缓存与连接配置已保留。');
     } finally { this.emit({ busy: false }); }
   };
   changePassword = async (currentPassword: string, password: string) => {

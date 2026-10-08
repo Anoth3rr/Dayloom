@@ -34,7 +34,7 @@ export function Sidebar({ data, view, onView, onSearch, onSettings, onList, stat
     <div className="sidebar-divider" />
     <button className={`nav-item completed-nav ${view === 'completed' ? 'active' : ''}`} onClick={() => onView('completed')}><CheckCheck size={18} strokeWidth={1.8} /><span>已完成</span></button>
     <div className="sidebar-bottom">
-      <div className="sidebar-footer"><button className="profile-button" onClick={onSettings} title="账号与设置"><span className="avatar">{account.session?.user.name.slice(0, 1) || '序'}</span><span>{account.session?.user.name || '登录账号'}<small><i className={status === '保存失败' ? 'error-dot' : ''} />{status === '保存失败' ? status : account.session ? syncLabels[account.syncStatus] : status}</small></span></button><IconButton label="设置" onClick={onSettings}><Settings2 size={18} /></IconButton></div>
+      <div className="sidebar-footer"><button className="profile-button" onClick={onSettings} title="账号与设置"><span className="avatar">{account.session?.user.name.slice(0, 1) || '序'}</span><span>{account.session?.user.name || '本地模式'}<small><i className={status === '保存失败' ? 'error-dot' : ''} />{status === '保存失败' ? status : account.session ? syncLabels[account.syncStatus] : status}</small></span></button><IconButton label="设置" onClick={onSettings}><Settings2 size={18} /></IconButton></div>
       <div className="local-caption">{account.session ? <><Cloud size={11} />账号同步</> : <><CloudOff size={11} />本地模式</>}</div>
     </div>
   </aside>;

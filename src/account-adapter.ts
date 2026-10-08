@@ -1,20 +1,27 @@
-import { accountHttp, authenticatedSession, publicSession } from '../shared/account-http.mjs';
-import type { PrivateSession } from '../shared/account-http.mjs';
+import { createAccountService, profileKey } from '../shared/account-service.mjs';
 import { assertEnvelope } from '../shared/sync-data.mjs';
 import { loadData, saveData } from './storage';
 import type { WorkspaceAdapter, WorkspaceEnvelope } from './account-types';
 
 const sessionKey = 'dayloom.account.session';
+const vaultKey = 'dayloom.webdav.accounts';
 export function browserAdapter(): WorkspaceAdapter {
-  let cached: PrivateSession | null | undefined;
-  function session() {
-    if (cached !== undefined) return cached;
-    try { const value = JSON.parse(sessionStorage.getItem(sessionKey) || 'null'); cached = value ? authenticatedSession(value.endpoint, value) : null; }
-    catch { cached = null; }
-    return cached;
+  const service = createAccountService({
+    load() {
+      const current = sessionStorage.getItem(vaultKey);
+      if (current) return { value: JSON.parse(current), remembered: false };
+      const legacy = JSON.parse(sessionStorage.getItem(sessionKey) || 'null');
+      return legacy ? { value: { version: 1, active: profileKey(legacy), accounts: [legacy] }, remembered: false } : null;
+    },
+    save(value) { sessionStorage.setItem(vaultKey, JSON.stringify(value)); sessionStorage.removeItem(sessionKey); return false; },
+  });
+  function checkKey(key: string) {
+    const active = service.active();
+    if (!active || profileKey(active) !== key) throw new Error('账号已切换，无法访问其他账号的缓存');
   }
   const keyOf = (key: string) => `dayloom.account.${key}`;
   function write(key: string, envelope: WorkspaceEnvelope) {
+    checkKey(key);
     assertEnvelope(envelope);
     const file = keyOf(key), previous = localStorage.getItem(file);
     if (previous) { try { assertEnvelope(JSON.parse(previous)); localStorage.setItem(`${file}.backup`, previous); } catch { /* Keep the last valid backup. */ } }
@@ -23,22 +30,10 @@ export function browserAdapter(): WorkspaceAdapter {
   return {
     loadGuest: loadData, saveGuest: saveData,
     flushGuest: data => { try { localStorage.setItem('shixu.data.v1', JSON.stringify(data)); return true; } catch (error) { return String(error); } },
-    session: async () => publicSession(session()),
-    async call(request) {
-      if (request.operation === 'logout') {
-        const previous = session(); sessionStorage.removeItem(sessionKey); cached = null;
-        try { await accountHttp(request, previous); } catch { /* Logout works offline. */ }
-        return { status: 200, body: { ok: true } };
-      }
-      const result = await accountHttp(request, session());
-      if (['register', 'login'].includes(request.operation) && result.status < 300) {
-        const next = authenticatedSession(request.endpoint!, result.body);
-        sessionStorage.setItem(sessionKey, JSON.stringify(next)); cached = next;
-        return { status: result.status, body: { session: publicSession(cached) } };
-      }
-      return result;
-    },
+    session: async () => service.session(),
+    call: service.call,
     async loadProfile(key) {
+      checkKey(key);
       const file = keyOf(key), raw = localStorage.getItem(file), path = '当前浏览器的账号缓存';
       if (!raw) return { envelope: null, path };
       try { return { envelope: assertEnvelope(JSON.parse(raw)), path }; }

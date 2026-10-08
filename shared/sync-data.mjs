@@ -21,6 +21,7 @@ export function assertEnvelope(value) {
   const pending = value.sync.pending;
   if (pending) {
     if (typeof pending.id !== 'string' || !/^[\da-f-]{36}$/i.test(pending.id) || !Number.isSafeInteger(pending.revision) || pending.revision !== value.sync.revision) throw new Error('同步请求记录无效');
+    if ((pending.clientId !== undefined || pending.sequence !== undefined) && (typeof pending.clientId !== 'string' || !/^[\da-f-]{36}$/i.test(pending.clientId) || !Number.isSafeInteger(pending.sequence) || pending.sequence < 1)) throw new Error('同步设备记录无效');
     normalizeData(pending.data);
   }
   return value;

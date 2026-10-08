@@ -1,43 +1,46 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { accountHttp, authenticatedSession, publicSession } from '../shared/account-http.mjs';
+import { createAccountService, profileKey } from '../shared/account-service.mjs';
 import { assertEnvelope } from '../shared/sync-data.mjs';
 
 export function createAccountStorage({ app, safeStorage, onData }) {
   const root = app.getPath('userData');
   const sessionFile = path.join(root, 'account-session.json');
+  const vaultFile = path.join(root, 'webdav-accounts.json');
   const blocked = new Set();
-  let session = null, initialized = false;
   function atomic(file, value) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const temp = `${file}.tmp`, fd = fs.openSync(temp, 'w', 0o600);
     try { fs.writeFileSync(fd, JSON.stringify(value), 'utf8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
     fs.renameSync(temp, file);
   }
-  function sessionValue() {
-    if (initialized) return session;
-    initialized = true;
-    if (!fs.existsSync(sessionFile)) return null;
-    try {
-      if (fs.statSync(sessionFile).size > 32768 || !safeStorage.isEncryptionAvailable()) return null;
-      const encrypted = JSON.parse(fs.readFileSync(sessionFile, 'utf8')).encrypted;
-      const value = JSON.parse(safeStorage.decryptString(Buffer.from(encrypted, 'base64')));
-      session = { ...authenticatedSession(value.endpoint, value), remembered: true };
-    } catch { session = null; }
-    return session;
-  }
-  function remember(value) {
-    const secure = safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text');
-    const next = { ...value, remembered: secure };
-    if (secure) atomic(sessionFile, { encrypted: safeStorage.encryptString(JSON.stringify(next)).toString('base64') });
-    else if (fs.existsSync(sessionFile)) fs.unlinkSync(sessionFile);
-    initialized = true; session = next;
-  }
+  const service = createAccountService({
+    load() {
+      const file = fs.existsSync(vaultFile) ? vaultFile : sessionFile;
+      if (!fs.existsSync(file)) return null;
+      try {
+        if (fs.statSync(file).size > 2 * 1024 * 1024 || !safeStorage.isEncryptionAvailable()) throw new Error('无法解密');
+        const encrypted = JSON.parse(fs.readFileSync(file, 'utf8')).encrypted;
+        const value = JSON.parse(safeStorage.decryptString(Buffer.from(encrypted, 'base64')));
+        return { value: file === vaultFile ? value : { version: 1, active: profileKey(value), accounts: [value] }, remembered: true };
+      } catch { throw new Error('无法读取已保存的账号凭据，原文件已保留。请在原 Windows 账号下打开，或备份后移走 webdav-accounts.json / account-session.json 再重新连接。'); }
+    },
+    save(value) {
+      const secure = safeStorage.isEncryptionAvailable() && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text');
+      if (secure) {
+        atomic(vaultFile, { encrypted: safeStorage.encryptString(JSON.stringify(value)).toString('base64') });
+        // A migrated legacy token must not reactivate after an explicit removal.
+        try { if (fs.existsSync(sessionFile)) fs.renameSync(sessionFile, `${sessionFile}.migrated-${Date.now()}`); }
+        catch { /* The committed vault takes precedence; leave the encrypted legacy copy intact. */ }
+      }
+      return secure;
+    },
+  });
   function profilePath(key) {
-    if (typeof key !== 'string' || !key.includes('\0') || key.length > 2300) throw new Error('账号缓存编号无效');
-    const active = sessionValue();
-    if (!active || key !== `${active.endpoint}\0${active.user.id}`) throw new Error('账号已切换，无法访问其他账号的缓存');
+    if (typeof key !== 'string' || key.length > 4096) throw new Error('账号缓存编号无效');
+    const active = service.active();
+    if (!active || key !== profileKey(active)) throw new Error('账号已切换，无法访问其他账号的缓存');
     return path.join(root, 'accounts', `${createHash('sha256').update(key).digest('hex')}.json`);
   }
   function read(file) {
@@ -45,21 +48,10 @@ export function createAccountStorage({ app, safeStorage, onData }) {
     return assertEnvelope(JSON.parse(fs.readFileSync(file, 'utf8')));
   }
   return {
-    session: () => publicSession(sessionValue()),
+    session: service.session,
     async call(request) {
-      if (!request || typeof request.operation !== 'string') throw new Error('账号请求无效');
-      if (request.operation === 'logout') {
-        const previous = sessionValue();
-        if (fs.existsSync(sessionFile)) fs.unlinkSync(sessionFile);
-        session = null; initialized = true; onData(null);
-        try { await accountHttp(request, previous); } catch { /* Local logout also works offline. */ }
-        return { status: 200, body: { ok: true } };
-      }
-      const result = await accountHttp(request, sessionValue());
-      if (['login', 'register'].includes(request.operation) && result.status < 300) {
-        remember(authenticatedSession(request.endpoint, result.body)); onData(null);
-        return { status: result.status, body: { session: publicSession(session) } };
-      }
+      const result = await service.call(request);
+      if (['login', 'register', 'webdav-connect', 'switch', 'logout'].includes(request.operation) && result.status < 300) onData(null);
       return result;
     },
     loadProfile(key) {

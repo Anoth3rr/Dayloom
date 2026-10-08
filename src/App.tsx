@@ -42,7 +42,7 @@ export default function App() {
     window.addEventListener('online', sync); window.addEventListener('focus', sync);
     return () => { window.removeEventListener('online', sync); window.removeEventListener('focus', sync); };
   }, []);
-  useEffect(() => { setView('today'); setEditor(null); setListEditor(null); setGameDialog(null); setQuery(''); }, [workspaceState.session?.user.id, workspaceState.session?.endpoint]);
+  useEffect(() => { setView('today'); setEditor(null); setListEditor(null); setGameDialog(null); setQuery(''); }, [workspaceState.session?.user.id, workspaceState.session?.endpoint, workspaceState.session?.folder, workspaceState.session?.provider]);
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
       if (dataRef.current) {
