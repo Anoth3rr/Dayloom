@@ -1,10 +1,21 @@
 node_modules/
 dist/
 release/
-test-results/
 *.tsbuildinfo
 .vite/
 build/*.zip
 server-data/
 .env
 .env.*
+
+# Local documentation, screenshots, tests, and verification reports
+docs/
+tests/
+test-results/
+playwright-report/
+blob-report/
+coverage/
+.nyc_output/
+*.test.*
+*.spec.*
+*-smoke.*

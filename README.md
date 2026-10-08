@@ -58,17 +58,31 @@
 
 在一台设备上运行 `npm run server`，其他设备在「设置 → 账号与同步」填写同一服务地址并登录同一账号。提供 Node.js + SQLite 和 Docker Compose 两种自部署方式；没有预置公共服务。
 
-详细启动、局域网连接、配置与备份步骤见 [账号服务自部署](docs/10-self-hosting.md)。离线修改保存在本机，恢复连接后自动同步。首次登录可选择合并本机任务，退出后恢复原本机空间。
+离线修改保存在本机，恢复连接后自动同步。首次登录可选择合并本机任务，退出后恢复原本机空间。
+
+使用 Node.js 24.15+（24.x），在项目目录运行：
+
+```powershell
+npm ci
+npm run build
+npm run server
+```
+
+默认地址为 `http://127.0.0.1:4318`，浏览器也可打开此地址。已有构建产物时，可以直接运行 `启动同步服务.cmd`；服务需要保持运行。
+
+局域网使用时，在启动前设置 `$env:DAYLOOM_HOST = '0.0.0.0'`，所有设备填写主机的局域网地址，例如 `http://192.168.1.10:4318`，并允许专用网络访问 TCP 4318。在不可信网络使用时，应通过反向代理提供 HTTPS。
+
+Docker 部署运行 `docker compose up -d --build`，默认仅向本机开放。要开放局域网，在项目根目录的 `.env` 中设置 `DAYLOOM_BIND_ADDRESS=0.0.0.0` 后重新启动；账号数据保存在 `dayloom-data` 卷。
+
+Node 服务可用 `DAYLOOM_PORT` 修改端口、`DAYLOOM_DATA_DIR` 修改数据目录，设置 `DAYLOOM_REGISTRATION=false` 关闭新用户注册。Node 使用 PowerShell 环境变量或 `node --env-file=.env server/index.mjs` 读取配置；Compose 自动读取 `.env`。
+
+完整备份时先停止服务，再复制整个 `server-data` 目录（或容器中的 `/data`），包含可能存在的 SQLite `-wal` 和 `-shm` 文件。客户端也可以在设置中导出当前账号的 JSON 备份。
 
 ## 时间窗口
 
 新建任务或打开详情，选择「时间窗口」，填写最早日期、最晚日期的一端或两端，时刻均可不填。最早日期无时刻表示从零点开始，截止日期无时刻表示当天结束。
 
 没有具体安排时，任务显示在日历「全天 / 待安排」区域，不占用时间轴。之后可勾选「设置具体安排」或将它拖到窗口内的时段；若整个执行时长超出窗口，会阻止保存或拖动。取消具体安排会保留窗口。普通任务的「指定日期」方式仍可使用。
-
-![周期事务与非常重要任务](docs/screenshots/planning-today.png)
-
-![时间窗口编辑](docs/screenshots/planning-window.png)
 
 ## 快捷键
 
@@ -107,11 +121,6 @@ npm run desktop:dev
 npm run dev          # http://127.0.0.1:5173 浏览器预览
 npm run build        # TypeScript 检查与前端构建
 npm start            # 运行已构建的桌面版
-npm test             # 任务、周期、时间窗口、账号及同步测试
-npm run test:desktop # 桌面操作与持久化验收，使用临时数据目录
-npm run test:games   # 游戏日程、打卡、改期、重启与跨凌晨刷新验收
-npm run test:planning # 普通周期、非常重要、窗口拖动、跨日与重启验收
-npm run test:accounts:desktop # 两个真实桌面进程的账号与同步验收
 npm run server       # 启动本机账号服务 http://127.0.0.1:4318
 npm run package      # Windows x64 便携程序
 ```
@@ -120,16 +129,10 @@ Electron 首次使用会下载运行时。`electronDist` 使用 `node_modules/el
 
 应用图标 PNG/ICO 已纳入项目，不需要重新生成。`scripts/create-icon.py` 是可选的图标源脚本，运行需要 Pillow。
 
+设计文档、截图、测试与验收脚本、验证报告仅在本地保留，由 Git 和 Docker 构建上下文忽略。`package.json` 中的 `test*` 命令供保留了本地 `tests/` 目录的开发环境使用。
+
 ## 实现结构
 
-- `docs/01-ui-design.md`：首先完成的界面方案。
-- `docs/02-functional-design.md`：随后制定的基础功能与数据契约。
-- `docs/04-game-planner-design.md`：游戏日程的界面、刷新规则与数据设计。
-- `docs/06-flexible-planning-design.md`：普通周期、长期目标和时间窗口设计。
-- `docs/07-flexible-planning-acceptance.md`：1.2.0 验证记录。
-- `docs/09-accounts-and-priority.md`：1.3.0 界面、非常重要与同步设计。
-- `docs/10-self-hosting.md`：同步服务启动、局域网连接与备份。
-- `docs/11-accounts-acceptance.md`：1.3.0 的 96 项自动化验收和交付记录。
 - `src/components/`：清单、任务、日历、编辑和设置界面。
 - `src/domain.ts`：本地日期、筛选、排序和日历布局规则。
 - `src/gaming.ts`：本机/服务器周期、完成记录与日历投影。
@@ -139,7 +142,6 @@ Electron 首次使用会下载运行时。`electronDist` 使用 `node_modules/el
 - `server/`：账号、会话和 SQLite 同步 API。
 - `shared/schema.mjs`：主进程与前端共用的数据校验。
 - `electron/`：原生窗口、文件存储、备份对话框和提醒。
-- `tests/`：核心规则和真实 Electron 操作回归。
 
 使用 React、TypeScript、Vite、Electron 与 Lucide 图标；本机模式无需服务端，跨设备账号使用自部署服务。主进程关闭 Node 注入，启用上下文隔离和沙箱，IPC 限定调用来源，登录令牌不暴露给桌面页面。
 
