@@ -8,7 +8,7 @@ server-data/
 .env
 .env.*
 
-# Local documentation, screenshots, tests, and verification reports
+# Local-only files
 docs/
 tests/
 test-results/
@@ -19,3 +19,6 @@ coverage/
 *.test.*
 *.spec.*
 *-smoke.*
+verification/
+qa/
+*.log

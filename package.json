@@ -1,6 +1,6 @@
 {
   "name": "shixu-desktop",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Dayloom · 拾序 — 任务与日程桌面应用",
   "author": "Shixu",
@@ -12,16 +12,7 @@
     "desktop:dev": "node scripts/dev.mjs",
     "build": "tsc -b && vite build",
     "start": "electron .",
-    "test": "tsx --test tests/domain.test.ts tests/gaming.test.ts tests/planning.test.ts tests/accounts.test.ts tests/webdav.test.ts",
-    "test:desktop": "node tests/desktop-smoke.mjs",
-    "test:games": "node tests/game-planner-smoke.mjs",
-    "package": "npm run build && electron-builder --win portable --x64",
-    "test:planning": "node tests/planning-smoke.mjs",
-    "server": "node server/index.mjs",
-    "test:accounts": "tsx --test tests/accounts.test.ts",
-    "test:accounts:desktop": "node tests/accounts-smoke.mjs",
-    "test:webdav": "tsx --test tests/webdav.test.ts",
-    "test:webdav:desktop": "node tests/webdav-smoke.mjs"
+    "package": "npm run build && electron-builder --win portable --x64"
   },
   "build": {
     "appId": "app.shixu.desktop",
@@ -59,14 +50,12 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "electron": "44.5.1",
     "electron-builder": "26.15.3",
-    "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.3"
   }

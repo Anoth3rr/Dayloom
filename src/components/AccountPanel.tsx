@@ -17,7 +17,7 @@ export function AccountPanel({ controller, state }: { controller: WorkspaceContr
   const [mergeCurrent, setMergeCurrent] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
-  const [tested, setTested] = useState(false);
+  const [connectionChecked, setConnectionChecked] = useState(false);
   const [forget, setForget] = useState<AccountSession | null>(null);
   const [leave, setLeave] = useState(false);
   const busy = working || state.busy;
@@ -32,7 +32,7 @@ export function AccountPanel({ controller, state }: { controller: WorkspaceContr
     setLegacy(!!account && account.provider !== 'webdav');
     setEndpoint(account?.endpoint || ''); setUsername(account?.user.username || '');
     setName(account?.user.name || ''); setFolder(account?.folder || 'Dayloom');
-    setPassword(''); setTested(false); setError(''); setMergeCurrent(false); setFormOpen(true);
+    setPassword(''); setConnectionChecked(false); setError(''); setMergeCurrent(false); setFormOpen(true);
   }
   return <section className="settings-section account-section" aria-label="账号与同步">
     <div className="account-section-title"><h3>账号与同步</h3><span className="dav-label">WebDAV</span></div>
@@ -58,7 +58,7 @@ export function AccountPanel({ controller, state }: { controller: WorkspaceContr
         })}
       </div>}
       {!formOpen && <button className="button secondary add-account" type="button" disabled={busy} onClick={() => edit()}><Plus size={16} />添加 WebDAV 账号</button>}
-      {formOpen && <form className="account-form dav-form" onChange={() => setTested(false)} onSubmit={event => {
+      {formOpen && <form className="account-form dav-form" onChange={() => setConnectionChecked(false)} onSubmit={event => {
         event.preventDefault();
         void run(async () => {
           if (legacy) await controller.login('login', endpoint, username, password, '', mergeCurrent);
@@ -66,16 +66,16 @@ export function AccountPanel({ controller, state }: { controller: WorkspaceContr
           setPassword(''); setFormOpen(false);
         });
       }}>
-        <div className="dav-form-heading"><strong>{legacy ? '旧版服务登录' : '连接 WebDAV'}</strong><button className="text-button" type="button" disabled={busy} onClick={() => { setLegacy(!legacy); setEndpoint(''); setPassword(''); setTested(false); setError(''); }}>{legacy ? '使用 WebDAV' : '旧版服务登录'}</button></div>
+        <div className="dav-form-heading"><strong>{legacy ? '旧版服务登录' : '连接 WebDAV'}</strong><button className="text-button" type="button" disabled={busy} onClick={() => { setLegacy(!legacy); setEndpoint(''); setPassword(''); setConnectionChecked(false); setError(''); }}>{legacy ? '使用 WebDAV' : '旧版服务登录'}</button></div>
         <fieldset disabled={busy}>
           <label className="form-label">{legacy ? '同步服务地址' : 'WebDAV 地址'}<input aria-label={legacy ? '同步服务地址' : 'WebDAV 地址'} type="url" autoComplete="url" maxLength={2048} placeholder={legacy ? 'http://192.168.1.10:4318' : 'https://dav.example.com/remote.php/dav/files/用户名/'} required value={endpoint} onChange={event => setEndpoint(event.target.value)} /></label>
           {!legacy && <div className="account-fields"><label className="form-label">账号名称<input aria-label="账号名称" maxLength={40} placeholder="例如：个人、工作" value={name} onChange={event => setName(event.target.value)} /></label><label className="form-label">同步目录<input aria-label="同步目录" maxLength={256} required value={folder} onChange={event => setFolder(event.target.value)} /></label></div>}
           <div className="account-fields"><label className="form-label">用户名<input aria-label="账号用户名" autoComplete="username" maxLength={256} required value={username} onChange={event => setUsername(event.target.value)} /></label><label className="form-label">{legacy ? '密码' : '密码 / 应用密码'}<input aria-label="账号密码" type="password" autoComplete="current-password" maxLength={2048} required value={password} onChange={event => setPassword(event.target.value)} /></label></div>
           {!legacy && <p className="account-help">使用已有的 WebDAV 账号；各设备填写相同地址、账号和同步目录。</p>}
           <label className="account-import"><input aria-label="合并当前任务" type="checkbox" checked={mergeCurrent} onChange={event => setMergeCurrent(event.target.checked)} />将当前任务合并到此账号<span>包含清单、周期事务和完成记录；原空间保留</span></label>
-          <div className="dav-form-actions">{!legacy && <button className="button secondary" type="button" onClick={event => { if (event.currentTarget.form?.reportValidity()) void run(async () => { await controller.testWebdav(endpoint, credentials); setTested(true); }); }}>测试连接</button>}<button className="button primary" type="submit">{busy ? <LoaderCircle size={16} className="spinning" /> : <FolderSync size={16} />}{busy ? '正在连接…' : legacy ? '登录并同步' : '连接并同步'}</button><button className="text-button" type="button" onClick={() => { setFormOpen(false); setPassword(''); setError(''); }}>取消</button></div>
+          <div className="dav-form-actions">{!legacy && <button className="button secondary" type="button" onClick={event => { if (event.currentTarget.form?.reportValidity()) void run(async () => { await controller.checkWebdav(endpoint, credentials); setConnectionChecked(true); }); }}>检查连接</button>}<button className="button primary" type="submit">{busy ? <LoaderCircle size={16} className="spinning" /> : <FolderSync size={16} />}{busy ? '正在连接…' : legacy ? '登录并同步' : '连接并同步'}</button><button className="text-button" type="button" onClick={() => { setFormOpen(false); setPassword(''); setError(''); }}>取消</button></div>
         </fieldset>
-        {tested && <p className="account-test-ok" role="status"><CloudCheck size={16} />连接成功，可以读写并同步</p>}
+        {connectionChecked && <p className="account-connection-ok" role="status"><CloudCheck size={16} />连接成功，可以读写并同步</p>}
         {!window.desktop && <p className="account-help">浏览器仅在当前标签页会话中保存凭据。WebDAV 需允许此网页跨域访问；桌面版无需设置跨域。</p>}
       </form>}
       {error && <p className="field-error" role="alert">{error}</p>}

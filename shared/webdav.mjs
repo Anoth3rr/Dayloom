@@ -166,7 +166,7 @@ export function createWebdavClient(fetcher = fetch) {
     let lease;
     try {
       if (!session) return { status: 401, body: { error: '请先连接 WebDAV 账号' } };
-      if (requestValue.operation === 'webdav-test' || requestValue.operation === 'webdav-connect') { await probe(session); return { status: 200, body: { ok: true } }; }
+      if (requestValue.operation === 'webdav-check' || requestValue.operation === 'webdav-connect') { await probe(session); return { status: 200, body: { ok: true } }; }
       const pending = requestValue.body;
       if (requestValue.operation === 'push') {
         if (!pending || !isId(pending.id) || !isId(pending.clientId) || !Number.isSafeInteger(pending.sequence) || pending.sequence < 1 || !Number.isSafeInteger(pending.revision) || pending.revision < 0) throw new DavError(422, '待同步请求无效');

@@ -4,7 +4,7 @@ export interface AccountSession { endpoint: string; user: AccountUser; expiresAt
 export interface PendingSync { id: string; revision: number; data: AppData; clientId?: string; sequence?: number }
 export interface WorkspaceEnvelope { version: 1; data: AppData; sync: { revision: number; base: AppData; pending?: PendingSync; lastSyncedAt?: number } }
 export interface ApiResponse { status: number; body: Record<string, unknown> }
-export type AccountOperation = 'register' | 'login' | 'pull' | 'push' | 'password' | 'logout' | 'webdav-connect' | 'webdav-test' | 'accounts' | 'switch' | 'forget';
+export type AccountOperation = 'register' | 'login' | 'pull' | 'push' | 'password' | 'logout' | 'webdav-connect' | 'webdav-check' | 'accounts' | 'switch' | 'forget';
 export interface AccountCall { operation: AccountOperation; endpoint?: string; body?: unknown; revision?: number }
 export interface AccountBridge {
   session: () => Promise<AccountSession | null>;

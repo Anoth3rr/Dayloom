@@ -55,11 +55,11 @@ export function createAccountService({ load, save, fetcher = fetch }) {
         persist({ ...state(), active: null });
         return result();
       }
-      if (['webdav-connect', 'webdav-test', 'login', 'register'].includes(request.operation)) {
+      if (['webdav-connect', 'webdav-check', 'login', 'register'].includes(request.operation)) {
         const isDav = request.operation.startsWith('webdav-');
         const candidate = isDav ? webdavSession(request.endpoint, request.body) : null;
         const response = isDav ? await dav.call(request, candidate) : await accountHttp(request, current, fetcher);
-        if (response.status >= 300 || request.operation === 'webdav-test') return response;
+        if (response.status >= 300 || request.operation === 'webdav-check') return response;
         const account = candidate || authenticatedSession(request.endpoint, response.body);
         const key = profileKey(account), accounts = state().accounts.filter(item => profileKey(item) !== key);
         if (accounts.length >= 30) throw new Error('最多保存 30 个账号，请先移除不再使用的账号');

@@ -29,7 +29,7 @@ export async function saveData(data: AppData): Promise<void> {
 export async function exportData(data: AppData): Promise<boolean> {
   if (window.desktop) return window.desktop.exportData(data);
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  const anchor = document.createElement('a'); anchor.href = url; anchor.download = `拾序备份-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = `Dayloom-backup-${new Date().toISOString().slice(0, 10)}.json`; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000); return true;
 }
 export async function importData(): Promise<AppData | null> {

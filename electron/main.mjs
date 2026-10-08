@@ -5,6 +5,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { assertData } from '../shared/schema.mjs';
 import { createAccountStorage } from './accounts.mjs';
+import { migrateDataDirectory } from './data-directory.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appId = app.isPackaged ? 'app.shixu.desktop' : 'app.shixu.desktop.dev';
@@ -13,8 +14,11 @@ const taskbarIcon = app.isPackaged
   ? process.env.PORTABLE_EXECUTABLE_FILE || path.join(process.resourcesPath, 'dayloom.ico')
   : path.join(root, 'build/icon.ico');
 const dev = process.argv.includes('--dev');
-const testArg = process.argv.find(arg => arg.startsWith('--data-dir='));
-if (testArg) app.setPath('userData', path.resolve(testArg.slice('--data-dir='.length)));
+const dataDirectoryArg = process.argv.find(arg => arg.startsWith('--data-dir='));
+const dataDirectory = dataDirectoryArg ? path.resolve(dataDirectoryArg.slice('--data-dir='.length)) : path.join(app.getPath('appData'), 'Dayloom');
+fs.mkdirSync(dataDirectory, { recursive: true });
+app.setPath('userData', dataDirectory);
+app.setPath('sessionData', dataDirectory);
 app.setName('拾序');
 app.setAppUserModelId(appId);
 let win;
@@ -24,7 +28,7 @@ let reminderTimer;
 const startedAt = Date.now();
 const acrylicSupported = process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621;
 const notified = new Set();
-const dataPath = () => path.join(app.getPath('userData'), 'shixu-data.json');
+const dataPath = () => path.join(app.getPath('userData'), 'data.json');
 
 function writeWindowsShortcut(shortcutPath) {
   const details = {
@@ -116,12 +120,12 @@ function registerIPC() {
   });
   handle('data:export', async (data) => {
     assertData(data);
-    const result = await dialog.showSaveDialog(win, { title: '导出拾序备份', defaultPath: `拾序备份-${new Date().toLocaleDateString('sv-SE')}.json`, filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
+    const result = await dialog.showSaveDialog(win, { title: '导出 Dayloom 备份', defaultPath: `Dayloom-backup-${new Date().toLocaleDateString('sv-SE')}.json`, filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
     if (result.canceled || !result.filePath) return false;
     fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf8'); return true;
   });
   handle('data:import', async () => {
-    const result = await dialog.showOpenDialog(win, { title: '选择拾序备份', properties: ['openFile'], filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
+    const result = await dialog.showOpenDialog(win, { title: '选择 Dayloom 备份', properties: ['openFile'], filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     return readJson(result.filePaths[0]);
   });
@@ -149,7 +153,7 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
   win.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  win.once('ready-to-show', () => { if (!process.argv.includes('--test-mode')) win.show(); });
+  win.once('ready-to-show', () => win.show());
   if (dev) win.loadURL('http://127.0.0.1:5173');
   else win.loadFile(path.join(root, 'dist/index.html'));
   win.on('closed', () => { win = null; });
@@ -177,9 +181,16 @@ if (process.argv.includes('--create-desktop-shortcut')) {
   }).catch(error => { console.error(error); app.exit(1); });
 } else if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  let migrationError;
+  try { if (!dataDirectoryArg) migrateDataDirectory(path.join(app.getPath('appData'), '拾序'), dataDirectory); }
+  catch (error) { migrationError = error; }
   app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
   app.whenReady().then(() => {
-    if (process.platform === 'win32' && app.isPackaged && !testArg) {
+    if (migrationError) {
+      dialog.showErrorBox('无法迁移 Dayloom 数据', `旧文件已保留，应用已停止写入。请检查数据目录的读写权限后重试。\n${migrationError.message}`);
+      app.quit(); return;
+    }
+    if (process.platform === 'win32' && app.isPackaged && !dataDirectoryArg) {
       try { updateStartMenuShortcut(); }
       catch (error) { console.error('Could not update the Dayloom Start Menu shortcut:', error); }
     }

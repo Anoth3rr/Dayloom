@@ -158,8 +158,8 @@ export class WorkspaceController {
     const result = await this.adapter.call({ operation: 'accounts' });
     if (result.status < 300 && Array.isArray(result.body.accounts)) this.emit({ accounts: result.body.accounts as AccountSession[] });
   }
-  testWebdav = async (endpoint: string, credentials: WebdavCredentials) => {
-    checked(await this.adapter.call({ operation: 'webdav-test', endpoint, body: credentials }));
+  checkWebdav = async (endpoint: string, credentials: WebdavCredentials) => {
+    checked(await this.adapter.call({ operation: 'webdav-check', endpoint, body: credentials }));
   };
   connectWebdav = (endpoint: string, credentials: WebdavCredentials, mergeCurrent: boolean) => this.enterAccount({ operation: 'webdav-connect', endpoint, body: credentials }, mergeCurrent);
   switchAccount = (session: AccountSession) => this.enterAccount({ operation: 'switch', body: { key: profileKey(session) } }, false);
