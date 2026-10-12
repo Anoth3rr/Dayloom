@@ -6,6 +6,7 @@ export interface TimeWindow { earliest: TimeBoundary | null; latest: TimeBoundar
 export interface Task {
   id: string; title: string; listId: string; completed: boolean;
   date: string | null; time: string | null; duration: number;
+  scheduleMode?: 'deadline' | 'window';
   priority: Priority; notes: string; subtasks: Subtask[]; reminder: boolean;
   createdAt: string; completedAt: string | null; example?: boolean;
   timeWindow?: TimeWindow;

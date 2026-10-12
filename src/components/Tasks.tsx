@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDownUp, ArrowUp, CalendarDays, Check, ChevronDown, ChevronRight, CircleCheck, Flag, Inbox, ListTodo, Plus, Search, Sun, Star } from 'lucide-react';
-import { addDays, createTask, friendlyDate, parseDate, sortTasks, taskOnDay, taskOverdue, tasksForView, windowLabel, WEEKDAYS } from '../domain';
+import { addDays, createTask, friendlyDate, isDeadline, parseDate, sortTasks, taskOnDay, taskOverdue, tasksForView, timeRange, windowLabel, WEEKDAYS } from '../domain';
 import type { AppData, Priority, Task, View } from '../types';
 import { todayRoutines } from '../gaming';
 import { accentStyle, CheckButton } from './ui';
@@ -14,7 +14,7 @@ export function TaskRow({ task, data, onToggle, onEdit, today }: { task: Task; d
       <span className="task-title">{task.title}</span>
       <span className="task-meta"><span className="list-label" style={accentStyle(list.color)}><i />{list.name}</span>{task.priority === 4 && <span className="very-important-label"><Star size={12} fill="currentColor" />非常重要</span>}{task.subtasks.length > 0 && <span><ListTodo size={12} />{task.subtasks.filter(sub => sub.completed).length}/{task.subtasks.length}</span>}{task.notes && <span className="note-indicator" title="有备注"><span className="note-lines" /></span>}</span>
     </button>
-    <button className={`task-date ${overdue ? 'overdue' : ''} ${task.timeWindow ? 'window-date' : ''}`} onClick={() => onEdit(task)} aria-label={`调整日期 ${task.title}`}>{task.timeWindow ? <><span>{windowLabel(task)}</span>{task.date ? `已安排 ${friendlyDate(task.date, today)}${task.time ? ` ${task.time}` : ''}` : '待安排'}</> : task.time ? <><span>{task.date !== today ? friendlyDate(task.date, today) : ''}</span>{task.time}</> : task.date && task.date !== today ? friendlyDate(task.date, today) : ''}{overdue && <span>已逾期</span>}</button>
+    <button className={`task-date ${overdue ? 'overdue' : ''} ${task.timeWindow ? 'window-date' : ''}`} onClick={() => onEdit(task)} aria-label={`调整日期 ${task.title}`}>{task.timeWindow ? <><span>{windowLabel(task)}</span>{task.date ? `已安排 ${friendlyDate(task.date, today)}${task.time ? ` ${task.time}` : ''}` : '待安排'}</> : isDeadline(task) && task.date ? <><span>{friendlyDate(task.date, today)}</span>{timeRange(task)}</> : task.time ? <><span>{task.date !== today ? friendlyDate(task.date, today) : ''}</span>{task.time}</> : task.date && task.date !== today ? friendlyDate(task.date, today) : ''}{overdue && <span>已逾期</span>}</button>
     {task.priority > 0 && <Flag className={`priority-flag p${task.priority}`} size={14} fill="currentColor" aria-label={task.priority === 4 ? '非常重要' : `${['', '低', '中', '高'][task.priority]}优先级`} />}
   </div>;
 }
@@ -32,7 +32,7 @@ function QuickAdd({ data, view, onAdd, today }: { data: AppData; view: View; onA
   }
   return <form className={`quick-add ${title ? 'expanded' : ''}`} onSubmit={event => { event.preventDefault(); add(); }}>
     <div className="quick-add-top"><Plus size={20} strokeWidth={1.6} /><input aria-label="快速添加任务" placeholder="添加任务…" maxLength={300} value={title} onChange={event => setTitle(event.target.value)} /><button type="submit" aria-label="添加任务" disabled={!title.trim()}><ArrowUp size={16} /></button></div>
-    <div className="quick-options"><label><CalendarDays size={13} /><input aria-label="快速添加日期" type="date" min="1900-01-01" max="2199-12-31" value={date} onChange={event => setDate(event.target.value)} /></label><select aria-label="快速添加清单" value={listId} onChange={event => setListId(event.target.value)}>{data.lists.map(list => <option value={list.id} key={list.id}>{list.name}</option>)}</select><select aria-label="快速添加优先级" value={priority} onChange={event => setPriority(Number(event.target.value) as Priority)}><option value={0}>无优先级</option><option value={1}>低优先级</option><option value={2}>中优先级</option><option value={3}>高优先级</option><option value={4}>非常重要</option></select><span>Enter 创建</span></div>
+    <div className="quick-options"><label title="截止日期"><CalendarDays size={13} /><input aria-label="快速添加截止日期" type="date" min="1900-01-01" max="2199-12-31" value={date} onChange={event => setDate(event.target.value)} /></label><select aria-label="快速添加清单" value={listId} onChange={event => setListId(event.target.value)}>{data.lists.map(list => <option value={list.id} key={list.id}>{list.name}</option>)}</select><select aria-label="快速添加优先级" value={priority} onChange={event => setPriority(Number(event.target.value) as Priority)}><option value={0}>无优先级</option><option value={1}>低优先级</option><option value={2}>中优先级</option><option value={3}>高优先级</option><option value={4}>非常重要</option></select><span>Enter 创建</span></div>
   </form>;
 }
 

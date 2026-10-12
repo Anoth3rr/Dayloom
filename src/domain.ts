@@ -1,6 +1,6 @@
 import { normalizeData } from '../shared/schema.mjs';
 import { uuid } from '../shared/uuid.mjs';
-import { boundaryStamp, windowContains } from '../shared/scheduling.mjs';
+import { boundaryStamp, isDeadline, windowContains } from '../shared/scheduling.mjs';
 import type { AppData, Task, View } from './types';
 
 export const COLORS = ['#5a80ed', '#49aa92', '#a07ad5', '#dc9a50', '#df7f98', '#7592a7'];
@@ -41,6 +41,7 @@ export function friendlyDate(key: string | null, today = dateKey()): string {
 export const minutes = (time: string) => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 export const clockText = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 export function timeRange(task: Task): string {
+  if (isDeadline(task)) return !task.date ? '未设截止日期' : task.time ? `${task.time} 截止` : '当天截止';
   if (!task.time && task.timeWindow) return windowLabel(task);
   if (!task.time) return '全天';
   const end = minutes(task.time) + task.duration;
@@ -65,17 +66,42 @@ export function taskOnDay(task: Task, day: string): boolean {
 export function taskOverdue(task: Task, today = dateKey(), now = new Date()): boolean {
   if (task.completed) return false;
   if (task.timeWindow) return !!task.timeWindow.latest && (task.timeWindow.latest.date < today || dateKey(now) === today && boundaryStamp(task.timeWindow.latest, true) < now.getTime());
+  if (isDeadline(task) && task.date) return task.date < today || task.date === today && dateKey(now) === today && boundaryStamp({ date: task.date, time: task.time }, true) < now.getTime();
   return !!task.date && task.date < today;
 }
 export function createTask(patch: Partial<Task> = {}): Task {
   return {
     id: uid(), title: '', listId: 'inbox', completed: false, date: null, time: null,
     duration: 60, priority: 0, notes: '', subtasks: [], reminder: false,
-    createdAt: new Date().toISOString(), completedAt: null, ...patch,
+    createdAt: new Date().toISOString(), completedAt: null, scheduleMode: patch.timeWindow ? 'window' : 'deadline', ...patch,
   };
 }
+export function editableTask(task: Task): Task {
+  const copy = structuredClone(task);
+  if (copy.timeWindow) return { ...copy, scheduleMode: 'window' };
+  if (isDeadline(copy)) return { ...copy, scheduleMode: 'deadline' };
+  // Older timed tasks retain their original start and duration when edited.
+  const end = new Date(boundaryStamp({ date: copy.date!, time: copy.time }) + copy.duration * 60000);
+  return { ...copy, scheduleMode: 'window', timeWindow: {
+    earliest: { date: copy.date!, time: copy.time },
+    latest: end.getFullYear() > 2199 ? null : { date: dateKey(end), time: `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}` },
+  } };
+}
+export function changeScheduleMode(task: Task, mode: 'deadline' | 'window', today = dateKey()): Task {
+  if (mode === 'deadline') {
+    if (!task.timeWindow) return { ...task, scheduleMode: mode };
+    const due = task.timeWindow.latest || (task.date ? { date: task.date, time: task.time } : task.timeWindow.earliest);
+    const { timeWindow: _window, ...rest } = task;
+    return { ...rest, scheduleMode: mode, date: due?.date || null, time: due?.time || null, reminder: !!due?.time && task.reminder };
+  }
+  if (task.timeWindow) return { ...task, scheduleMode: mode };
+  return { ...task, scheduleMode: mode, timeWindow: {
+    earliest: task.date ? null : { date: today, time: null },
+    latest: task.date ? { date: task.date, time: task.time } : null,
+  }, date: null, time: null, reminder: false };
+}
 export function seedData(today = dateKey()): AppData {
-  const make = (patch: Partial<Task>) => createTask({ date: today, example: true, ...patch });
+  const make = (patch: Partial<Task>) => editableTask(createTask({ date: today, example: true, scheduleMode: undefined, ...patch }));
   return {
     version: 1,
     lists: [
@@ -126,7 +152,7 @@ export interface EventSegment { task: Task; start: number; end: number; continua
 export function dayEvents(tasks: Task[], day: string): EventSegment[] {
   const events: EventSegment[] = [];
   for (const task of tasks) {
-    if (!task.date || !task.time) continue;
+    if (!task.date || !task.time || isDeadline(task)) continue;
     const start = minutes(task.time);
     if (task.date === day) events.push({ task, start, end: Math.min(1440, start + task.duration), continuation: false, lane: 0, lanes: 1 });
     if (addDays(task.date, 1) === day && start + task.duration > 1440) events.push({ task, start: 0, end: start + task.duration - 1440, continuation: true, lane: 0, lanes: 1 });
@@ -150,9 +176,9 @@ export function dayEvents(tasks: Task[], day: string): EventSegment[] {
 }
 export function moveTaskTo(task: Task, date: string, time: string | null): Task {
   if (!windowContains(task.timeWindow, date, time, time ? task.duration : 0)) throw new Error('具体安排必须在最早开始和最晚完成之间；请先调整时间窗口或预计用时');
-  return { ...task, date, time, reminder: time ? task.reminder : false, example: false };
+  return { ...task, ...(isDeadline(task) ? { scheduleMode: 'deadline' as const } : {}), date, time, reminder: time ? task.reminder : false, example: false };
 }
-export { boundaryStamp, windowContains };
+export { boundaryStamp, isDeadline, windowContains };
 export function deleteList(data: AppData, id: string): AppData {
   if (id === 'inbox') return data;
   return { ...data, lists: data.lists.filter(list => list.id !== id), tasks: data.tasks.map(task => task.listId === id ? { ...task, listId: 'inbox', example: false } : task) };

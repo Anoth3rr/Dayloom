@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { assertData } from '../shared/schema.mjs';
 import { createAccountStorage } from './accounts.mjs';
 import { migrateDataDirectory } from './data-directory.mjs';
+import { isDeadline } from '../shared/scheduling.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appId = app.isPackaged ? 'app.shixu.desktop' : 'app.shixu.desktop.dev';
@@ -167,7 +168,7 @@ function checkReminders() {
     const key = `${task.id}:${task.date}:${task.time}`;
     if (due < startedAt - 1000 || due > now || now - due > 300000 || notified.has(key)) continue;
     notified.add(key);
-    const notification = new Notification({ title: task.title, body: `任务提醒 · ${task.time}`, icon: path.join(root, 'build/icon.png') });
+    const notification = new Notification({ title: task.title, body: `${isDeadline(task) ? '截止提醒' : '任务提醒'} · ${task.time}`, icon: path.join(root, 'build/icon.png') });
     notification.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
     notification.show();
   }

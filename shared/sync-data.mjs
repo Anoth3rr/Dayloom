@@ -46,7 +46,7 @@ export function mergeData(baseValue, localValue, remoteValue, makeId = uuid) {
   function fields(kind, before, left, right) {
     const values = new Map(Object.entries(right));
     let conflict = false;
-    const groups = kind === 'task' ? [['date', 'time', 'duration', 'timeWindow', 'reminder'], ['completed', 'completedAt']]
+    const groups = kind === 'task' ? [['date', 'time', 'duration', 'timeWindow', 'reminder', 'scheduleMode'], ['completed', 'completedAt']]
       : kind === 'activity' ? [['kind', 'weekdays', 'startDate', 'revision', 'timeWindow', 'anytime', 'planTime', 'planWeekday', 'planMonthDay', 'minutes']]
       : kind === 'progress' ? [['plannedAt', 'allDay']] : [];
     const grouped = new Set(groups.flat());

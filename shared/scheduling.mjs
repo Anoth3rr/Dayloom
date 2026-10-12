@@ -1,3 +1,7 @@
+export function isDeadline(task) {
+  return !task.gameOccurrence && !task.timeWindow && (task.scheduleMode === 'deadline' || (!task.scheduleMode && !task.time));
+}
+
 export function boundaryStamp(boundary, end = false) {
   if (!boundary) return end ? Infinity : -Infinity;
   return new Date(`${boundary.date}T${boundary.time || (end ? '23:59' : '00:00')}:00`).getTime() + (end && !boundary.time ? 59999 : 0);

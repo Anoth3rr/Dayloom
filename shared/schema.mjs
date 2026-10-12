@@ -35,6 +35,9 @@ export function assertData(data) {
     if (task.time !== null && (typeof task.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(task.time) || !task.date)) fail('时间无效');
     if (task.reminder && (!task.date || !task.time)) fail('提醒缺少日期或时间');
     if (!Number.isInteger(task.duration) || task.duration < 5 || task.duration > 1440) fail('时长必须为 5–1440 分钟');
+    if (task.scheduleMode !== undefined && !['deadline', 'window'].includes(task.scheduleMode)) fail('安排方式无效');
+    if (task.scheduleMode === 'deadline' && task.timeWindow !== undefined) fail('截止日期与时间窗口不能同时设置');
+    if (task.scheduleMode === 'window' && task.timeWindow === undefined) fail('时间窗口缺少边界');
     if (task.timeWindow !== undefined) {
       const window = task.timeWindow;
       const validBoundary = b => b === null || (object(b) && isValidDate(b.date) && (b.time === null || (typeof b.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(b.time))));

@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from 'lucide-react';
-import { addDays, dayEvents, friendlyDate, monthDays, monthTitle, parseDate, shiftMonth, taskOnDay, timeRange, WEEKDAYS } from '../domain';
+import { addDays, dayEvents, friendlyDate, isDeadline, monthDays, monthTitle, parseDate, shiftMonth, taskOnDay, timeRange, WEEKDAYS } from '../domain';
 import { calendarData } from '../gaming';
 import type { AppData, Task } from '../types';
 import { accentStyle, IconButton } from './ui';
@@ -14,11 +14,13 @@ export function Agenda({ data: storedData, today, onEdit, onNew, onCalendar }: {
   const days = monthDays(month);
   const data = calendarData(storedData, addDays(days[0] < selected ? days[0] : selected, -1), days[41] > selected ? days[41] : selected);
   const events = dayEvents(data.tasks.filter(task => !task.completed), selected);
-  const allDay = data.tasks.filter(task => !task.completed && taskOnDay(task, selected) && !task.time);
-  return <aside className="agenda-panel"><header className="agenda-heading"><span><CalendarDays size={17} />日程一览</span><IconButton label="打开完整日历" onClick={onCalendar}><ChevronRight size={17} /></IconButton></header><MiniCalendar key={today} data={data} today={today} selected={selected} onSelect={setSelected} month={month} setMonth={setMonth} /><div className="agenda-divider" /><div className="agenda-date"><div><strong>{friendlyDate(selected, today)}</strong><span>星期{WEEKDAYS[parseDate(selected).getDay()]}</span></div><button onClick={() => { setSelected(today); setMonth(today); }} className="text-button">回到今天</button></div><div className="agenda-summary"><Clock3 size={12} />{events.length} 段日程 · {allDay.length} 个待安排</div><div className="agenda-scroll">
+  const deadlines = data.tasks.filter(task => !task.completed && taskOnDay(task, selected) && isDeadline(task)).sort((a, b) => (a.time || '24:00').localeCompare(b.time || '24:00'));
+  const allDay = data.tasks.filter(task => !task.completed && taskOnDay(task, selected) && !task.time && !isDeadline(task));
+  return <aside className="agenda-panel"><header className="agenda-heading"><span><CalendarDays size={17} />日程一览</span><IconButton label="打开完整日历" onClick={onCalendar}><ChevronRight size={17} /></IconButton></header><MiniCalendar key={today} data={data} today={today} selected={selected} onSelect={setSelected} month={month} setMonth={setMonth} /><div className="agenda-divider" /><div className="agenda-date"><div><strong>{friendlyDate(selected, today)}</strong><span>星期{WEEKDAYS[parseDate(selected).getDay()]}</span></div><button onClick={() => { setSelected(today); setMonth(today); }} className="text-button">回到今天</button></div><div className="agenda-summary"><Clock3 size={12} />{deadlines.length} 项截止 · {events.length} 段日程 · {allDay.length} 个待安排</div><div className="agenda-scroll">
+    {deadlines.length > 0 && <div className="all-day-summary deadline-summary"><span>当天截止</span>{deadlines.map(task => <button key={task.id} style={accentStyle(data.lists.find(list => list.id === task.listId)!.color)} onClick={() => onEdit(task)}><i /><span>{task.title}<small>{timeRange(task)}</small></span></button>)}</div>}
     {allDay.length > 0 && <div className="all-day-summary"><span>全天 / 待安排</span>{allDay.map(task => { const list = data.lists.find(list => list.id === task.listId)!; return <button key={task.id} style={accentStyle(list.color)} onClick={() => onEdit(task)}><i /><span>{task.title}{task.timeWindow && <small>{timeRange(task)}</small>}</span></button>; })}</div>}
     <div className="agenda-timeline">{events.map(({ task, continuation }) => { const list = data.lists.find(list => list.id === task.listId)!; return <div className="agenda-entry" key={`${task.id}-${continuation}`} style={accentStyle(list.color)}><div className="agenda-time"><i />{continuation ? '00:00' : task.time}</div><button className="agenda-event" onClick={() => onEdit(task)}><strong>{task.title}</strong><span>{continuation ? '接续昨日 · ' : ''}{timeRange(task)}</span><small><i />{list.name}</small></button></div>; })}</div>
-    {!events.length && !allDay.length && <div className="agenda-empty"><SunIllustration /><strong>当天暂无日程</strong></div>}
+    {!events.length && !allDay.length && !deadlines.length && <div className="agenda-empty"><SunIllustration /><strong>当天暂无日程</strong></div>}
     <button className="add-schedule" onClick={() => onNew(selected)}><Plus size={15} />安排日程</button>
   </div></aside>;
 }
