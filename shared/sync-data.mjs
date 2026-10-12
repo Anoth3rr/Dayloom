@@ -11,7 +11,7 @@ export const equal = (a, b) => canonical(a) === canonical(b);
 export function normalizeEndpoint(value) {
   if (typeof value !== 'string' || value.length > 2048) throw new Error('请输入有效的同步服务地址');
   let url;
-  try { url = new URL(value); } catch { throw new Error('请输入完整的服务地址，例如 http://192.168.1.10:4318'); }
+  try { url = new URL(value); } catch { throw new Error('请输入完整的服务地址，例如 https://sync.example.com'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname.replace(/\/+$/, '')) throw new Error('服务地址仅包含 http(s)、主机和端口');
   return url.origin;
 }
