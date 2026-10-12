@@ -1,21 +1,12 @@
 # Only application source, required assets, and build configuration belong here.
 /*
 !/.gitignore
-!/index.html
 !/package.json
 !/package-lock.json
-!/tsconfig.json
-!/vite.config.ts
-!/electron/
-!/shared/
+!/config/
+!/assets/
 !/src/
 !/scripts/
-!/public/
-!/build/
-
-/build/*
-!/build/icon.ico
-!/build/icon.png
 
 # Exclude local artifacts even when generated inside a source directory.
 node_modules/

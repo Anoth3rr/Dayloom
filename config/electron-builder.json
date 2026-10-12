@@ -1,0 +1,31 @@
+{
+  "appId": "app.shixu.desktop",
+  "productName": "拾序",
+  "directories": {
+    "output": "release",
+    "buildResources": "assets/icons"
+  },
+  "files": [
+    "dist/renderer/**/*",
+    "src/main/**/*",
+    "src/shared/**/*.mjs",
+    "assets/icons/icon.png",
+    "package.json"
+  ],
+  "asar": true,
+  "extraResources": [
+    {
+      "from": "assets/icons/icon.ico",
+      "to": "dayloom.ico"
+    }
+  ],
+  "electronDist": "node_modules/electron/dist",
+  "win": {
+    "target": "portable",
+    "icon": "assets/icons/icon.ico",
+    "signExecutable": false
+  },
+  "portable": {
+    "artifactName": "Dayloom-${version}-Windows.exe"
+  }
+}

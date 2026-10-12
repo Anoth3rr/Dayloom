@@ -1,0 +1,201 @@
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme, Notification, shell, safeStorage } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { assertData } from '../shared/schema.mjs';
+import { createAccountStorage } from './accounts.mjs';
+import { migrateDataDirectory } from './data-directory.mjs';
+import { isDeadline } from '../shared/scheduling.mjs';
+
+const root = app.getAppPath();
+const appId = app.isPackaged ? 'app.shixu.desktop' : 'app.shixu.desktop.dev';
+const launchExecutable = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+const taskbarIcon = app.isPackaged
+  ? process.env.PORTABLE_EXECUTABLE_FILE || path.join(process.resourcesPath, 'dayloom.ico')
+  : path.join(root, 'assets/icons/icon.ico');
+const dev = process.argv.includes('--dev');
+const dataDirectoryArg = process.argv.find(arg => arg.startsWith('--data-dir='));
+const dataDirectory = dataDirectoryArg ? path.resolve(dataDirectoryArg.slice('--data-dir='.length)) : path.join(app.getPath('appData'), 'Dayloom');
+fs.mkdirSync(dataDirectory, { recursive: true });
+app.setPath('userData', dataDirectory);
+app.setPath('sessionData', dataDirectory);
+app.setName('拾序');
+app.setAppUserModelId(appId);
+let win;
+let currentData = null;
+let storageBlocked = false;
+let reminderTimer;
+const startedAt = Date.now();
+const acrylicSupported = process.platform === 'win32' && Number(os.release().split('.')[2]) >= 22621;
+const notified = new Set();
+const dataPath = () => path.join(app.getPath('userData'), 'data.json');
+
+function writeWindowsShortcut(shortcutPath) {
+  const details = {
+    target: launchExecutable, cwd: path.dirname(launchExecutable), args: '',
+    icon: taskbarIcon, iconIndex: 0, appUserModelId: appId,
+    description: 'Dayloom - Tasks and calendar',
+  };
+  fs.mkdirSync(path.dirname(shortcutPath), { recursive: true });
+  if (!shell.writeShortcutLink(shortcutPath, 'create', details)) throw new Error('Could not write the Dayloom shortcut.');
+  const saved = shell.readShortcutLink(shortcutPath);
+  if (saved.target !== details.target || saved.appUserModelId !== appId || saved.icon !== details.icon) {
+    throw new Error('Could not verify the Dayloom shortcut.');
+  }
+}
+function updateStartMenuShortcut() {
+  writeWindowsShortcut(path.join(app.getPath('appData'), 'Microsoft/Windows/Start Menu/Programs', `${app.getName()}.lnk`));
+}
+function readJson(file) {
+  if (fs.statSync(file).size > 20 * 1024 * 1024) throw new Error('数据文件过大');
+  return assertData(JSON.parse(fs.readFileSync(file, 'utf8')));
+}
+function load() {
+  currentData = null;
+  const file = dataPath();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  if (!fs.existsSync(file)) return { data: null, path: file };
+  try { currentData = readJson(file); return { data: currentData, path: file }; }
+  catch {
+    fs.copyFileSync(file, `${file}.corrupted-${Date.now()}`);
+    try {
+      currentData = readJson(`${file}.backup`);
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(currentData, null, 2));
+      fs.renameSync(`${file}.tmp`, file);
+      return { data: currentData, path: file, warning: '已从上一份备份恢复，损坏的原始数据已保留。' };
+    } catch {
+      storageBlocked = true;
+      throw new Error('数据文件及备份均无法读取，原始文件已保留。请打开数据目录进行恢复。');
+    }
+  }
+}
+function save(data) {
+  if (storageBlocked) throw new Error('数据读取异常，已停止写入以保护原始文件。');
+  assertData(data);
+  const file = dataPath();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temp = `${file}.tmp`;
+  const fd = fs.openSync(temp, 'w');
+  try { fs.writeFileSync(fd, JSON.stringify(data, null, 2), 'utf8'); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  if (fs.existsSync(file)) {
+    try { readJson(file); fs.copyFileSync(file, `${file}.backup`); }
+    catch { fs.copyFileSync(file, `${file}.corrupted-${Date.now()}`); }
+  }
+  fs.renameSync(temp, file);
+  currentData = data;
+}
+function checkSender(event) {
+  if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Invalid sender');
+}
+function registerIPC() {
+  const accounts = createAccountStorage({ app, safeStorage, onData: data => { currentData = data; } });
+  const handle = (name, fn) => ipcMain.handle(name, (event, ...args) => { checkSender(event); return fn(...args); });
+  handle('account:session', accounts.session);
+  handle('account:call', accounts.call);
+  handle('account:load', accounts.loadProfile);
+  handle('account:save', accounts.saveProfile);
+  ipcMain.on('account:flush', (event, key, envelope) => {
+    try { checkSender(event); accounts.saveProfile(key, envelope); event.returnValue = true; }
+    catch (error) { event.returnValue = error.message; }
+  });
+  handle('data:load', load);
+  handle('data:save', save);
+  ipcMain.on('data:flush', (event, data) => {
+    try { checkSender(event); save(data); event.returnValue = true; }
+    catch (error) { event.returnValue = error.message; }
+  });
+  ipcMain.on('window:action', (event, action) => {
+    checkSender(event);
+    if (action === 'minimize') win.minimize();
+    if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize();
+    if (action === 'close') win.close();
+  });
+  ipcMain.on('appearance:theme', (event, theme) => {
+    checkSender(event);
+    if (['light', 'dark', 'system'].includes(theme)) {
+      nativeTheme.themeSource = theme;
+      if (!acrylicSupported) win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#17202e' : '#f2f5fa');
+    }
+  });
+  handle('data:export', async (data) => {
+    assertData(data);
+    const result = await dialog.showSaveDialog(win, { title: '导出 Dayloom 备份', defaultPath: `Dayloom-backup-${new Date().toLocaleDateString('sv-SE')}.json`, filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
+    if (result.canceled || !result.filePath) return false;
+    fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf8'); return true;
+  });
+  handle('data:import', async () => {
+    const result = await dialog.showOpenDialog(win, { title: '选择 Dayloom 备份', properties: ['openFile'], filters: [{ name: 'JSON 备份', extensions: ['json'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    return readJson(result.filePaths[0]);
+  });
+  handle('data:folder', async () => { await shell.openPath(app.getPath('userData')); });
+}
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1440, height: 940, minWidth: 1080, minHeight: 720, frame: false,
+    title: 'Dayloom · 拾序', show: false,
+    backgroundColor: acrylicSupported ? '#00FFFFFF' : '#f2f5fa',
+    ...(acrylicSupported ? { backgroundMaterial: 'acrylic' } : {}),
+    icon: path.join(root, 'assets/icons/icon.png'),
+    webPreferences: { preload: path.join(root, 'src/main/preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, backgroundThrottling: false },
+  });
+  if (process.platform === 'win32') {
+    win.setAppDetails({
+      appId,
+      appIconPath: taskbarIcon,
+      appIconIndex: 0,
+      relaunchCommand: app.isPackaged ? `"${launchExecutable}"` : `"${process.execPath}" "${root}"${dev ? ' --dev' : ''}`,
+      relaunchDisplayName: 'Dayloom · 拾序',
+    });
+  }
+  win.setMenuBarVisibility(false);
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event) => event.preventDefault());
+  win.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  win.once('ready-to-show', () => win.show());
+  if (dev) win.loadURL('http://127.0.0.1:5173');
+  else win.loadFile(path.join(root, 'dist/renderer/index.html'));
+  win.on('closed', () => { win = null; });
+}
+function checkReminders() {
+  if (!currentData || !Notification.isSupported()) return;
+  const now = Date.now();
+  for (const task of currentData.tasks) {
+    if (!task.reminder || task.completed || !task.date || !task.time) continue;
+    const due = new Date(`${task.date}T${task.time}:00`).getTime();
+    const key = `${task.id}:${task.date}:${task.time}`;
+    if (due < startedAt - 1000 || due > now || now - due > 300000 || notified.has(key)) continue;
+    notified.add(key);
+    const notification = new Notification({ title: task.title, body: `${isDeadline(task) ? '截止提醒' : '任务提醒'} · ${task.time}`, icon: path.join(root, 'assets/icons/icon.png') });
+    notification.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+    notification.show();
+  }
+}
+if (process.argv.includes('--create-desktop-shortcut')) {
+  app.whenReady().then(() => {
+    if (process.platform !== 'win32' || !app.isPackaged) throw new Error('A Windows desktop build is required.');
+    writeWindowsShortcut(path.join(app.getPath('desktop'), 'Dayloom.lnk'));
+    updateStartMenuShortcut();
+    app.quit();
+  }).catch(error => { console.error(error); app.exit(1); });
+} else if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  let migrationError;
+  try { if (!dataDirectoryArg) migrateDataDirectory(path.join(app.getPath('appData'), '拾序'), dataDirectory); }
+  catch (error) { migrationError = error; }
+  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+  app.whenReady().then(() => {
+    if (migrationError) {
+      dialog.showErrorBox('无法迁移 Dayloom 数据', `旧文件已保留，应用已停止写入。请检查数据目录的读写权限后重试。\n${migrationError.message}`);
+      app.quit(); return;
+    }
+    if (process.platform === 'win32' && app.isPackaged && !dataDirectoryArg) {
+      try { updateStartMenuShortcut(); }
+      catch (error) { console.error('Could not update the Dayloom Start Menu shortcut:', error); }
+    }
+    registerIPC(); createWindow(); reminderTimer = setInterval(checkReminders, 15000);
+    app.on('activate', () => { if (!win) createWindow(); });
+  });
+  app.on('window-all-closed', () => { clearInterval(reminderTimer); app.quit(); });
+}

@@ -6,43 +6,13 @@
   "author": "Shixu",
   "license": "UNLICENSED",
   "type": "module",
-  "main": "electron/main.mjs",
+  "main": "src/main/main.mjs",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite --config config/vite.config.ts",
     "desktop:dev": "node scripts/dev.mjs",
-    "build": "tsc -b && vite build",
+    "build": "tsc --project src/tsconfig.json && vite build --config config/vite.config.ts",
     "start": "electron .",
-    "package": "npm run build && electron-builder --win portable --x64"
-  },
-  "build": {
-    "appId": "app.shixu.desktop",
-    "productName": "拾序",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "shared/**/*",
-      "build/icon.png",
-      "package.json"
-    ],
-    "asar": true,
-    "extraResources": [
-      {
-        "from": "build/icon.ico",
-        "to": "dayloom.ico"
-      }
-    ],
-    "electronDist": "node_modules/electron/dist",
-    "win": {
-      "target": "portable",
-      "icon": "build/icon.ico",
-      "signExecutable": false
-    },
-    "portable": {
-      "artifactName": "Dayloom-${version}-Windows.exe"
-    }
+    "package": "npm run build && electron-builder --config config/electron-builder.json --win portable --x64"
   },
   "dependencies": {
     "lucide-react": "1.52.0",
