@@ -1,4 +1,4 @@
-# Only application source, required assets, and build configuration belong here.
+# Keep application source, required assets, build configuration, and the README.
 /*
 !/.gitignore
 !/package.json
@@ -30,6 +30,7 @@ reports/
 plans/
 backups/
 *.md
+!/README.md
 *.log
 *.tsbuildinfo
 *.map
